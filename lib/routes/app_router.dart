@@ -14,11 +14,38 @@ import '../views/elderly_profile_view.dart';
 import '../views/caregiver_home_view.dart';
 import '../views/caregiver_reminder_list_view.dart';
 import '../views/caregiver_reminder_detail_view.dart';
+import '../views/caregiver_reminder_create_view.dart';
+import '../views/caregiver_reminder_edit_view.dart';
+import '../views/caregiver_group_list_view.dart';
+import '../views/caregiver_group_detail_view.dart';
+import '../views/caregiver_group_create_view.dart';
+import '../views/caregiver_profile_view.dart';
+import '../views/auth/login_view.dart';
+import '../views/auth/register_selection_view.dart';
+import '../views/auth/register_elderly_view.dart';
+import '../views/auth/register_caregiver_view.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation:
-      '/caregiver/home', // Change to '/elderly/home' for elderly view
+  initialLocation: '/login',
   routes: [
+    // Auth routes
+    GoRoute(
+      path: '/login',
+      builder: (context, state) => const LoginView(),
+    ),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterSelectionView(),
+    ),
+    GoRoute(
+      path: '/register/elderly',
+      builder: (context, state) => const RegisterElderlyView(),
+    ),
+    GoRoute(
+      path: '/register/caregiver',
+      builder: (context, state) => const RegisterCaregiverView(),
+    ),
+
     // Elderly routes
     GoRoute(
       path: '/elderly/home',
@@ -72,86 +99,27 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/caregiver/reminder/create',
-      builder: (context, state) => const PlaceholderView(
-        title: 'Create Reminder',
-        backRoute: '/caregiver/reminder',
-      ),
+      builder: (context, state) => const CaregiverReminderCreateView(),
+    ),
+    GoRoute(
+      path: '/caregiver/reminder/edit',
+      builder: (context, state) => const CaregiverReminderEditView(),
     ),
     GoRoute(
       path: '/caregiver/groups',
-      builder: (context, state) => const PlaceholderView(
-        title: 'Groups',
-        backRoute: '/caregiver/home',
-      ),
+      builder: (context, state) => const CaregiverGroupListView(),
+    ),
+    GoRoute(
+      path: '/caregiver/groups/detail',
+      builder: (context, state) => const CaregiverGroupDetailView(),
+    ),
+    GoRoute(
+      path: '/caregiver/groups/create',
+      builder: (context, state) => const CaregiverGroupCreateView(),
     ),
     GoRoute(
       path: '/caregiver/profile',
-      builder: (context, state) => const PlaceholderView(
-        title: 'Caregiver Profile',
-        backRoute: '/caregiver/home',
-      ),
-    ),
-
-    // Auth routes
-    GoRoute(
-      path: '/login',
-      builder: (context, state) => const PlaceholderView(
-        title: 'Login',
-        backRoute: '/caregiver/home',
-      ),
+      builder: (context, state) => const CaregiverProfileView(),
     ),
   ],
 );
-
-// Temporary placeholder view for routes not yet implemented
-class PlaceholderView extends StatelessWidget {
-  final String title;
-  final String backRoute;
-
-  const PlaceholderView({
-    super.key,
-    required this.title,
-    required this.backRoute,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(title),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(backRoute),
-        ),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.construction,
-              size: 64,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '$title Page',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Coming Soon',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

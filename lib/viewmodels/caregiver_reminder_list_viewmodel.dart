@@ -38,7 +38,7 @@ class CaregiverReminderListViewModel extends ChangeNotifier {
           hasVoiceNote: true,
           voiceNoteDurationSeconds: 45,
         ),
-        'elderlyName': 'Mr. Lee',
+        'elderlyName': 'Mrs. Lim',
         'elderlyId': 'elderly_1',
       },
       {
@@ -68,7 +68,7 @@ class CaregiverReminderListViewModel extends ChangeNotifier {
           hasVoiceNote: true,
           voiceNoteDurationSeconds: 32,
         ),
-        'elderlyName': 'Mr. Lee',
+        'elderlyName': 'Mrs. Lim',
         'elderlyId': 'elderly_1',
       },
       {
@@ -114,7 +114,7 @@ class CaregiverReminderListViewModel extends ChangeNotifier {
           recurringPattern: 'Daily',
           hasVoiceNote: false,
         ),
-        'elderlyName': 'Mr. Lee',
+        'elderlyName': 'Mrs. Lim',
         'elderlyId': 'elderly_1',
       },
     ];

@@ -70,6 +70,7 @@ class ElderlyProfileViewModel extends ChangeNotifier {
         chronicDisease: true,
         chronicDiseaseNotes: 'Diabetes Type 2, Hypertension',
         avatarUrl: null,
+        role: UserRole.elderly,
       );
 
       _populateHealthInfoControllers();

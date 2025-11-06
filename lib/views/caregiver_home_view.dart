@@ -236,22 +236,6 @@ class CaregiverHomeContent extends StatelessWidget {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          // TODO: Navigate to create reminder page
-          context.go('/caregiver/reminder/create');
-        },
-        backgroundColor: const Color(0xFF6C63FF),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Quick Create',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
     );
   }
 

@@ -595,8 +595,7 @@ class CaregiverReminderDetailContent extends StatelessWidget {
                               viewModel.startRecordingVoiceNote();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content:
-                                      Text('Recording voice note (demo)...'),
+                                  content: Text('Recording voice note...'),
                                   backgroundColor: Color(0xFFEC4899),
                                   duration: Duration(seconds: 3),
                                 ),

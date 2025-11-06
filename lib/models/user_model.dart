@@ -1,3 +1,10 @@
+// lib/models/user_model.dart
+
+enum UserRole {
+  caregiver,
+  elderly,
+}
+
 class UserModel {
   final String id;
   String username;
@@ -10,6 +17,13 @@ class UserModel {
   String chronicDiseaseNotes;
   String? avatarUrl;
 
+  // Role
+  UserRole role;
+
+  // Caregiver-specific fields
+  String? contactNumber;
+  List<String>? assignedGroups;
+
   UserModel({
     required this.id,
     required this.username,
@@ -20,7 +34,10 @@ class UserModel {
     required this.weightKg,
     required this.chronicDisease,
     required this.chronicDiseaseNotes,
+    required this.role,
     this.avatarUrl,
+    this.contactNumber,
+    this.assignedGroups,
   });
 
   String getInitials() {
@@ -46,6 +63,9 @@ class UserModel {
     bool? chronicDisease,
     String? chronicDiseaseNotes,
     String? avatarUrl,
+    UserRole? role,
+    String? contactNumber,
+    List<String>? assignedGroups,
   }) {
     return UserModel(
       id: id,
@@ -58,6 +78,9 @@ class UserModel {
       chronicDisease: chronicDisease ?? this.chronicDisease,
       chronicDiseaseNotes: chronicDiseaseNotes ?? this.chronicDiseaseNotes,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      role: role ?? this.role,
+      contactNumber: contactNumber ?? this.contactNumber,
+      assignedGroups: assignedGroups ?? this.assignedGroups,
     );
   }
 }

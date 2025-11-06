@@ -927,7 +927,7 @@ class ElderlyProfileContent extends StatelessWidget {
                   // Show success message
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Logged out (hardcoded)'),
+                      content: Text('Logged out'),
                       backgroundColor: Color(0xFF10B981),
                       duration: Duration(seconds: 2),
                     ),

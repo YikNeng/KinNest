@@ -55,7 +55,7 @@ class CaregiverReminderDetailViewModel extends ChangeNotifier {
           hasVoiceNote: true,
           voiceNoteDurationSeconds: 45,
         );
-        _elderlyName = 'Mr. Lee';
+        _elderlyName = 'Mrs. Lim';
       } else if (reminderType == 'appointment') {
         _reminder = ReminderModel(
           id: '2',
@@ -85,7 +85,7 @@ class CaregiverReminderDetailViewModel extends ChangeNotifier {
           durationMinutes: 30,
           hasVoiceNote: false,
         );
-        _elderlyName = 'Mr. Lee';
+        _elderlyName = 'Mrs. Lim';
       }
 
       _isLoading = false;
