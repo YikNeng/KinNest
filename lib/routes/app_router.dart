@@ -1,3 +1,5 @@
+// lib/routes/app_router.dart
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../views/elderly_home_view.dart';
@@ -9,10 +11,15 @@ import '../views/elderly_music_view.dart';
 import '../views/elderly_exercise_view.dart';
 import '../views/elderly_exercise_plan_view.dart';
 import '../views/elderly_profile_view.dart';
+import '../views/caregiver_home_view.dart';
+import '../views/caregiver_reminder_list_view.dart';
+import '../views/caregiver_reminder_detail_view.dart';
 
 final GoRouter appRouter = GoRouter(
-  initialLocation: '/elderly/home',
+  initialLocation:
+      '/caregiver/home', // Change to '/elderly/home' for elderly view
   routes: [
+    // Elderly routes
     GoRoute(
       path: '/elderly/home',
       builder: (context, state) => const ElderlyHomeView(),
@@ -49,9 +56,49 @@ final GoRouter appRouter = GoRouter(
       path: '/elderly/profile',
       builder: (context, state) => const ElderlyProfileView(),
     ),
+
+    // Caregiver routes
+    GoRoute(
+      path: '/caregiver/home',
+      builder: (context, state) => const CaregiverHomeView(),
+    ),
+    GoRoute(
+      path: '/caregiver/reminder',
+      builder: (context, state) => const CaregiverReminderListView(),
+    ),
+    GoRoute(
+      path: '/caregiver/reminder/detail',
+      builder: (context, state) => const CaregiverReminderDetailView(),
+    ),
+    GoRoute(
+      path: '/caregiver/reminder/create',
+      builder: (context, state) => const PlaceholderView(
+        title: 'Create Reminder',
+        backRoute: '/caregiver/reminder',
+      ),
+    ),
+    GoRoute(
+      path: '/caregiver/groups',
+      builder: (context, state) => const PlaceholderView(
+        title: 'Groups',
+        backRoute: '/caregiver/home',
+      ),
+    ),
+    GoRoute(
+      path: '/caregiver/profile',
+      builder: (context, state) => const PlaceholderView(
+        title: 'Caregiver Profile',
+        backRoute: '/caregiver/home',
+      ),
+    ),
+
+    // Auth routes
     GoRoute(
       path: '/login',
-      builder: (context, state) => const PlaceholderView(title: 'Login'),
+      builder: (context, state) => const PlaceholderView(
+        title: 'Login',
+        backRoute: '/caregiver/home',
+      ),
     ),
   ],
 );
@@ -59,8 +106,13 @@ final GoRouter appRouter = GoRouter(
 // Temporary placeholder view for routes not yet implemented
 class PlaceholderView extends StatelessWidget {
   final String title;
+  final String backRoute;
 
-  const PlaceholderView({super.key, required this.title});
+  const PlaceholderView({
+    super.key,
+    required this.title,
+    required this.backRoute,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +121,7 @@ class PlaceholderView extends StatelessWidget {
         title: Text(title),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(backRoute),
         ),
       ),
       body: Center(
