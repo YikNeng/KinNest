@@ -16,7 +16,7 @@ class GeminiService {
   /// Generate exercise routine using Gemini API
   Future<ExerciseRoutine> generateExerciseRoutine({
     required int age,
-    required String healthCondition,
+    required String medicalConditions,
     required String mobilityLevel,
     required String durationType,
     required String intensity,
@@ -25,7 +25,7 @@ class GeminiService {
       // Build prompt
       String prompt = _buildPrompt(
         age: age,
-        healthCondition: healthCondition,
+        medicalConditions: medicalConditions,
         mobilityLevel: mobilityLevel,
         durationType: durationType,
         intensity: intensity,
@@ -51,7 +51,7 @@ class GeminiService {
             'temperature': 0.7,
             'topK': 40,
             'topP': 0.95,
-            'maxOutputTokens': 4096,
+            'maxOutputTokens': 8000,
           },
           'safetySettings': [
             {'category': 'HARM_CATEGORY_HARASSMENT', 'threshold': 'BLOCK_NONE'},
@@ -125,7 +125,7 @@ class GeminiService {
   /// Build structured prompt for Gemini
   String _buildPrompt({
     required int age,
-    required String healthCondition,
+    required String medicalConditions,
     required String mobilityLevel,
     required String durationType,
     required String intensity,
@@ -139,7 +139,7 @@ class GeminiService {
         : 'moderate but still safe for elderly';
 
     // Build health condition section
-    String healthSection = _buildHealthConditionSection(healthCondition);
+    String healthSection = _buildMedicalConditionsSection(medicalConditions);
 
     // Build mobility section
     String mobilitySection = _buildMobilitySection(mobilityLevel);
@@ -172,39 +172,42 @@ LIMITATIONS:
 - Each exercise must have at most 4 steps
 - Keep descriptions concise
 
-CRITICAL: You must respond with ONLY valid JSON. No markdown, no explanations, no extra text.
+TASK:
+Generate a personalized exercise routine in JSON format ONLY. Do not include any text before or after the JSON.
 
-JSON STRUCTURE (respond with this exact format):
+JSON STRUCTURE:
 {
   "routine_type": "$durationType",
-  "duration_minutes": 25,
+  "duration_minutes": <total duration number>,
   "exercises": [
     {
-      "name": "Exercise Name",
-      "description": "Brief description",
-      "steps": ["Step 1", "Step 2", "Step 3"],
-      "duration_minutes": 5,
-      "safety_notes": "Safety precautions"
+      "name": "<exercise name>",
+      "description": "<brief description>",
+      "steps": ["<step 1>", "<step 2>", "<step 3>"],
+      "duration_minutes": <duration number>,
+      "safety_notes": "<safety precautions>",
     }
   ],
-  "general_advice": "General advice for the user"
+  "general_advice": "<general advice for the elderly user>"
 }
 
-Generate the routine now in valid JSON format only. Start with { and end with }:
+IMPORTANT: Each exercise MUST include a valid YouTube video URL in the "video_url" field.
+
+Generate the routine now in valid JSON format only:
 ''';
   }
 
   /// Build health condition section of prompt
-  String _buildHealthConditionSection(String healthCondition) {
+  String _buildMedicalConditionsSection(String medicalConditions) {
     // Check if health condition is generic/empty
-    if (healthCondition == 'No specific health conditions' ||
-        healthCondition.toLowerCase().contains('no specific') ||
-        healthCondition.toLowerCase().contains('none') ||
-        healthCondition.trim().isEmpty) {
+    if (medicalConditions == 'No specific health conditions' ||
+        medicalConditions.toLowerCase().contains('no specific') ||
+        medicalConditions.toLowerCase().contains('none') ||
+        medicalConditions.trim().isEmpty) {
       return '- Health Condition: No specific health conditions reported (use general elderly safety guidelines)';
     }
 
-    return '- Health Condition: $healthCondition (adjust exercises accordingly)';
+    return '- Health Condition: $medicalConditions (adjust exercises accordingly)';
   }
 
   /// Build mobility section of prompt

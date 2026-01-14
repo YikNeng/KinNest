@@ -7,6 +7,7 @@ class Exercise {
   final List<String> steps;
   final int durationMinutes;
   final String safetyNotes;
+  final String? videoUrl;
 
   Exercise({
     required this.name,
@@ -14,6 +15,7 @@ class Exercise {
     required this.steps,
     required this.durationMinutes,
     required this.safetyNotes,
+    this.videoUrl,
   });
 
   factory Exercise.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Exercise {
           [],
       durationMinutes: json['duration_minutes'] as int? ?? 5,
       safetyNotes: json['safety_notes']?.toString() ?? '',
+      videoUrl: json['video_url']?.toString(),
     );
   }
 
@@ -37,14 +40,35 @@ class Exercise {
       'steps': steps,
       'duration_minutes': durationMinutes,
       'safety_notes': safetyNotes,
+      'video_url': videoUrl,
     };
   }
 
-  // SAME as toJson for now
-  Map<String, dynamic> toFirestore() => toJson();
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'description': description,
+      'steps': steps,
+      'duration_minutes': durationMinutes,
+      'safety_notes': safetyNotes,
+      'video_url': videoUrl,
+    };
+  }
 
-  factory Exercise.fromFirestore(Map<String, dynamic> data) =>
-      Exercise.fromJson(data);
+  factory Exercise.fromFirestore(Map<String, dynamic> data) {
+    return Exercise(
+      name: data['name']?.toString() ?? 'Unknown Exercise',
+      description: data['description']?.toString() ?? '',
+      steps:
+          (data['steps'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      durationMinutes: data['duration_minutes'] as int? ?? 5,
+      safetyNotes: data['safety_notes']?.toString() ?? '',
+      videoUrl: data['video_url']?.toString(),
+    );
+  }
 }
 
 /// Model for complete exercise routine
@@ -54,7 +78,7 @@ class ExerciseRoutine {
   final List<Exercise> exercises;
   final String generalAdvice;
   final DateTime createdAt;
-  final String? routineId; // NEW: Firestore document ID
+  final String? routineId;
 
   ExerciseRoutine({
     required this.routineType,
@@ -93,7 +117,7 @@ class ExerciseRoutine {
     };
   }
 
-  // NEW: Convert to Firestore format
+  // Convert to Firestore format
   Map<String, dynamic> toFirestore() {
     return {
       'routine_type': routineType,
@@ -105,7 +129,7 @@ class ExerciseRoutine {
     };
   }
 
-  // NEW: Create from Firestore document
+  // Create from Firestore document
   factory ExerciseRoutine.fromFirestore(
     String documentId,
     Map<String, dynamic> data,

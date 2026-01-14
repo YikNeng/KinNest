@@ -3,14 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/exercise_model.dart';
 import '../services/gemini_service.dart';
+import '../services/youtube_service.dart';
 
 class ExerciseViewModel extends ChangeNotifier {
   final GeminiService _geminiService = GeminiService();
+  final YouTubeService _youtubeService = YouTubeService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   // User profile data
   int? _userAge;
-  String? _userHealthCondition;
+  String? _userMedicalConditions;
   String? _userMobilityLevel;
 
   // Preference inputs
@@ -33,13 +35,13 @@ class ExerciseViewModel extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   ExerciseRoutine? get generatedRoutine => _generatedRoutine;
   int? get userAge => _userAge;
-  String? get userHealthCondition => _userHealthCondition;
+  String? get userMedicalConditions => _userMedicalConditions;
   String? get userMobilityLevel => _userMobilityLevel;
 
   bool get hasMinimumProfile => _userAge != null;
 
-  String get healthConditionDisplay =>
-      _userHealthCondition?.isEmpty ?? true ? '-' : _userHealthCondition!;
+  String get medicalConditionsDisplay =>
+      _userMedicalConditions?.isEmpty ?? true ? '-' : _userMedicalConditions!;
 
   String get mobilityLevelDisplay => _userMobilityLevel?.isEmpty ?? true
       ? 'Not specified'
@@ -65,10 +67,10 @@ class ExerciseViewModel extends ChangeNotifier {
         Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
         _userAge = userData['age'] as int?;
 
-        _userHealthCondition = userData['healthCondition'] as String?;
-        if (_userHealthCondition != null &&
-            _userHealthCondition!.trim().isEmpty) {
-          _userHealthCondition = null;
+        _userMedicalConditions = userData['medicalConditions'] as String?;
+        if (_userMedicalConditions != null &&
+            _userMedicalConditions!.trim().isEmpty) {
+          _userMedicalConditions = null;
         }
 
         _userMobilityLevel = userData['mobilityLevel'] as String?;
@@ -92,18 +94,26 @@ class ExerciseViewModel extends ChangeNotifier {
   /// NEW: Load saved routine from Firestore
   Future<void> _loadSavedRoutine() async {
     try {
+      debugPrint('📥 Loading routine from Firestore...');
+
       ExerciseRoutine? savedRoutine = await _geminiService
           .loadRoutineFromFirestore(userId: _currentUserId);
 
       if (savedRoutine != null) {
+        debugPrint(
+          '✅ Routine loaded: ${savedRoutine.exercises.length} exercises',
+        );
+        for (var ex in savedRoutine.exercises) {
+          debugPrint('   - ${ex.name}: ${ex.videoUrl ?? "NO VIDEO"}');
+        }
+
         _generatedRoutine = savedRoutine;
-        // Also load the preferences that were used
         _durationType = savedRoutine.routineType;
-        // Note: intensity is not stored, so we keep the default
+      } else {
+        debugPrint('ℹ️ No saved routine found');
       }
     } catch (e) {
-      // Silently fail - it's okay if there's no saved routine
-      debugPrint('Failed to load saved routine: $e');
+      debugPrint('❌ Failed to load saved routine: $e');
     }
   }
 
@@ -150,24 +160,73 @@ class ExerciseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // Step 1: Generate routine from Gemini (without video URLs)
       ExerciseRoutine routine = await _geminiService.generateExerciseRoutine(
         age: _userAge!,
-        healthCondition:
-            _userHealthCondition ?? 'No specific health conditions',
+        medicalConditions:
+            _userMedicalConditions ?? 'No specific medical conditions',
         mobilityLevel: _userMobilityLevel ?? 'Normal mobility',
         durationType: _durationType,
         intensity: _intensity,
       );
 
-      _generatedRoutine = routine;
+      debugPrint('✅ Gemini generated ${routine.exercises.length} exercises');
+
+      // Step 2: Search YouTube for real video URLs
+      List<Exercise> exercisesWithVideos = [];
+
+      for (int i = 0; i < routine.exercises.length; i++) {
+        Exercise exercise = routine.exercises[i];
+
+        debugPrint('🔍 Searching video for: ${exercise.name}');
+
+        String? videoUrl = await _youtubeService.searchExerciseVideo(
+          exercise.name,
+        );
+
+        debugPrint('${videoUrl != null ? "✅" : "❌"} Video URL: $videoUrl');
+
+        // Create new exercise with video URL
+        exercisesWithVideos.add(
+          Exercise(
+            name: exercise.name,
+            description: exercise.description,
+            steps: exercise.steps,
+            durationMinutes: exercise.durationMinutes,
+            safetyNotes: exercise.safetyNotes,
+            videoUrl: videoUrl, // Real YouTube URL or null
+          ),
+        );
+
+        // Small delay to respect API limits
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      // Step 3: Create routine with video URLs
+      _generatedRoutine = ExerciseRoutine(
+        routineType: routine.routineType,
+        durationMinutes: routine.durationMinutes,
+        exercises: exercisesWithVideos,
+        generalAdvice: routine.generalAdvice,
+        createdAt: DateTime.now(),
+      );
+
+      debugPrint(
+        '✅ Routine created with ${exercisesWithVideos.length} exercises',
+      );
+      for (var ex in exercisesWithVideos) {
+        debugPrint('   - ${ex.name}: ${ex.videoUrl ?? "NO VIDEO"}');
+      }
+
       _isGenerating = false;
       notifyListeners();
 
-      // NEW: Auto-save to Firestore after successful generation
+      // Step 4: Auto-save to Firestore (with video URLs)
       await _saveRoutineInBackground();
 
       return true;
     } catch (e) {
+      debugPrint('❌ Error generating routine: $e');
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       _isGenerating = false;
       notifyListeners();
@@ -183,10 +242,14 @@ class ExerciseViewModel extends ChangeNotifier {
       _isSaving = true;
       notifyListeners();
 
+      debugPrint('💾 Saving routine to Firestore...');
+
       String routineId = await _geminiService.saveRoutineToFirestore(
         userId: _currentUserId,
         routine: _generatedRoutine!,
       );
+
+      debugPrint('✅ Routine saved with ID: $routineId');
 
       // Update routine with the Firestore ID
       _generatedRoutine = _generatedRoutine!.copyWith(routineId: routineId);
@@ -194,8 +257,7 @@ class ExerciseViewModel extends ChangeNotifier {
       _isSaving = false;
       notifyListeners();
     } catch (e) {
-      // Don't show error to user, just log it
-      debugPrint('Failed to save routine in background: $e');
+      debugPrint('❌ Failed to save routine: $e');
       _isSaving = false;
       notifyListeners();
     }

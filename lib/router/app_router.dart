@@ -135,7 +135,12 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
       // Elderly routes with bottom navigation
       ShellRoute(
         builder: (context, state, child) {
-          return ElderlyBottomNavScaffold(child: child);
+          return MultiProvider(
+            providers: [
+              ChangeNotifierProvider(create: (_) => ExerciseViewModel()),
+            ],
+            child: ElderlyBottomNavScaffold(child: child),
+          );
         },
         routes: [
           GoRoute(
@@ -149,13 +154,9 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
           GoRoute(
             path: '/elderly/exercise',
             builder: (context, state) {
-              // Get optional query parameter
+              // Now we just pass the skipAuto parameter
               final skipAuto = state.uri.queryParameters['skipAuto'] == 'true';
-
-              return ChangeNotifierProvider(
-                create: (_) => ExerciseViewModel(),
-                child: ElderlyExercisePage(skipAutoNavigate: skipAuto),
-              );
+              return ElderlyExercisePage(skipAutoNavigate: skipAuto);
             },
           ),
           GoRoute(
@@ -169,26 +170,10 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
         ],
       ),
 
-      // Exercise result page (uses same ViewModel from exercise page)
       GoRoute(
         path: '/elderly/exercise/result',
         builder: (context, state) {
-          // Get the ViewModel instance passed via extra
-          final viewModel = state.extra as ExerciseViewModel?;
-
-          if (viewModel != null) {
-            // Use the existing ViewModel
-            return ChangeNotifierProvider.value(
-              value: viewModel,
-              child: const ElderlyExerciseRoutinePage(),
-            );
-          } else {
-            // Fallback: create new ViewModel (shouldn't happen in normal flow)
-            return ChangeNotifierProvider(
-              create: (_) => ExerciseViewModel(),
-              child: const ElderlyExerciseRoutinePage(),
-            );
-          }
+          return const ElderlyExerciseRoutinePage();
         },
       ),
 

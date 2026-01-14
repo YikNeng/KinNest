@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latest_fyp/models/elderly_profile_model.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   /// Create user profile in Firestore
   /// Stores user data in 'users' collection with UID as document ID
@@ -60,6 +63,92 @@ class UserService {
       return null;
     } catch (e) {
       throw Exception('Failed to get user profile: $e');
+    }
+  }
+
+  /// Get elderly profile by user ID
+  ///
+  /// How it works:
+  /// 1. Fetches document from users/{userId}
+  /// 2. Converts Firestore data to ElderlyProfile model
+  /// 3. Returns null if user doesn't exist
+  Future<ElderlyProfile?> getElderlyProfile(String userId) async {
+    try {
+      DocumentSnapshot doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return ElderlyProfile.fromFirestore(
+        doc.id,
+        doc.data() as Map<String, dynamic>,
+      );
+    } catch (e) {
+      throw Exception('Failed to get profile: $e');
+    }
+  }
+
+  /// Get current user's profile
+  Future<ElderlyProfile?> getCurrentUserProfile() async {
+    String? userId = _auth.currentUser?.uid;
+    if (userId == null) {
+      throw Exception('No user logged in');
+    }
+    return await getElderlyProfile(userId);
+  }
+
+  /// Update elderly profile
+  ///
+  /// How it works:
+  /// 1. Takes updated profile data
+  /// 2. Converts to Firestore format
+  /// 3. Updates only editable fields (age, height, weight, health, mobility)
+  /// 4. Sets updatedAt timestamp automatically
+  ///
+  /// Safety:
+  /// - Only updates specified fields (partial update)
+  /// - Preserves email, role, and createdAt
+  /// - Uses server timestamp for consistency
+  Future<void> updateElderlyProfile({
+    required String userId,
+    int? age,
+    double? height,
+    double? weight,
+    String? medicalConditions,
+    String? mobilityLevel,
+  }) async {
+    try {
+      Map<String, dynamic> updates = {
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Only include fields that are provided
+      if (age != null) updates['age'] = age;
+      if (height != null) updates['height'] = height;
+      if (weight != null) updates['weight'] = weight;
+      if (medicalConditions != null)
+        updates['medicalConditions'] = medicalConditions;
+      if (mobilityLevel != null) updates['mobilityLevel'] = mobilityLevel;
+
+      await _firestore.collection('users').doc(userId).update(updates);
+    } catch (e) {
+      throw Exception('Failed to update profile: $e');
+    }
+  }
+
+  /// Update user email in Firestore
+  Future<void> updateUserEmail(String userId, String newEmail) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'email': newEmail,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      throw Exception('Failed to update email in database: $e');
     }
   }
 }

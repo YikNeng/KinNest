@@ -316,13 +316,6 @@ class _CaregiverProfilePageBody extends StatelessWidget {
             value: viewModel.userName,
             onTap: () => _showEditNameDialog(context, viewModel),
           ),
-          const Divider(height: 24),
-          _buildInfoRow(
-            icon: Icons.email_outlined,
-            label: 'Email',
-            value: viewModel.userEmail,
-            onTap: () => _showEditEmailDialog(context, viewModel),
-          ),
         ],
       ),
     );

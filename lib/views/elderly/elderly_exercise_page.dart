@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latest_fyp/views/elderly/elderly_exercise_routine_page.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/exercise_viewmodel.dart';
 
@@ -14,35 +15,12 @@ class ElderlyExercisePage extends StatefulWidget {
 }
 
 class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
-  bool _hasCheckedRoutine = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Only check once and only if not skipping
-    if (!widget.skipAutoNavigate) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _checkExistingRoutine();
-      });
-    }
-  }
-
-  void _checkExistingRoutine() {
-    if (_hasCheckedRoutine) return;
-    _hasCheckedRoutine = true;
-
-    final viewModel = Provider.of<ExerciseViewModel>(context, listen: false);
-
-    // If routine already exists, navigate to result page
-    if (viewModel.generatedRoutine != null && mounted) {
-      context.push('/elderly/exercise/result', extra: viewModel);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ExerciseViewModel>(context);
-
+    if (viewModel.generatedRoutine != null && !widget.skipAutoNavigate) {
+      return const ElderlyExerciseRoutinePage();
+    }
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -61,10 +39,6 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Show banner if routine exists
-                  if (viewModel.generatedRoutine != null)
-                    _buildExistingRoutineBanner(context, viewModel),
-
                   // Header
                   _buildHeader(),
 
@@ -97,179 +71,13 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
     );
   }
 
-  Widget _buildExistingRoutineBanner(
-    BuildContext context,
-    ExerciseViewModel viewModel,
-  ) {
-    final routine = viewModel.generatedRoutine!;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.green[600]!, Colors.green[500]!],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.green.withOpacity(0.3),
-            spreadRadius: 2,
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.check_circle,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'You Have a Routine!',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${routine.exercises.length} exercises • ${routine.durationMinutes} min',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    context.push('/elderly/exercise/result', extra: viewModel);
-                  },
-                  icon: const Icon(Icons.visibility, size: 20),
-                  label: const Text(
-                    'View Routine',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.green[700],
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 0,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: () {
-                  _showClearRoutineDialog(context, viewModel);
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.all(14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Icon(Icons.delete_outline, size: 24),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showClearRoutineDialog(
+  Future<void> _handleGenerate(
     BuildContext context,
     ExerciseViewModel viewModel,
   ) async {
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.delete_outline, color: Colors.orange[700], size: 28),
-            const SizedBox(width: 12),
-            const Text(
-              'Delete Routine?',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: const Text(
-          'This will permanently delete your exercise routine. You can always generate a new one.',
-          style: TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text(
-              'Delete',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      // Use the delete method which removes from Firestore
-      bool success = await viewModel.deleteRoutine();
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Routine deleted'),
-            backgroundColor: Colors.green[700],
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    }
+    bool success = await viewModel.generateRoutine();
+    // After generation, we don't need to push anymore because
+    // the build method above will automatically switch to the routine view.
   }
 
   Widget _buildLoading() {
@@ -377,7 +185,7 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
           const SizedBox(height: 12),
           _buildProfileItem(
             'Health Condition',
-            viewModel.healthConditionDisplay,
+            viewModel.medicalConditionsDisplay,
             Icons.favorite,
             isRequired: false,
             isMissing: false,
@@ -422,7 +230,7 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
             ),
           ],
           if (viewModel.userAge != null &&
-              (viewModel.userHealthCondition == null ||
+              (viewModel.userMedicalConditions == null ||
                   viewModel.userMobilityLevel == null)) ...[
             const SizedBox(height: 16),
             Container(
@@ -463,6 +271,8 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
     bool isMissing = false,
   }) {
     return Row(
+      // Aligns items to the top so icons stay aligned if text wraps to a new line
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
           icon,
@@ -470,14 +280,19 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
           color: isMissing ? Colors.orange[700] : Colors.blue[700],
         ),
         const SizedBox(width: 12),
-        Text(
-          '$label${isRequired ? ' *' : ''}: ',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: isMissing ? Colors.orange[800] : Colors.blue[800],
+        // Use a SizedBox with a fixed width for the label to create a "column" effect
+        SizedBox(
+          width: 140, // Adjust this width as needed to fit your longest label
+          child: Text(
+            '$label: ',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+              color: isMissing ? Colors.orange[800] : Colors.blue[800],
+            ),
           ),
         ),
+        // The value will now always start at the same horizontal position
         Expanded(
           child: Text(
             value,
@@ -752,16 +567,5 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
         ),
       ),
     );
-  }
-
-  Future<void> _handleGenerate(
-    BuildContext context,
-    ExerciseViewModel viewModel,
-  ) async {
-    bool success = await viewModel.generateRoutine();
-
-    if (success && mounted) {
-      context.push('/elderly/exercise/result', extra: viewModel);
-    }
   }
 }

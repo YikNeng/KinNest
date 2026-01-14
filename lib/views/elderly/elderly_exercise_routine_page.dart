@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../viewmodels/exercise_viewmodel.dart';
 import '../../models/exercise_model.dart';
 
@@ -90,17 +91,10 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Success Header
           _buildSuccessHeader(routine),
-
           const SizedBox(height: 28),
-
-          // Routine Summary
           _buildRoutineSummary(routine),
-
           const SizedBox(height: 28),
-
-          // Exercises Section Header
           Row(
             children: [
               Icon(Icons.list, size: 32, color: Colors.grey[800]),
@@ -112,24 +106,15 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 20),
-
-          // Exercises List
           ...routine.exercises.asMap().entries.map((entry) {
             int index = entry.key;
             Exercise exercise = entry.value;
-            return _buildExerciseCard(exercise, index + 1);
+            return _buildExerciseCard(context, exercise, index + 1);
           }).toList(),
-
           const SizedBox(height: 28),
-
-          // General Advice
           _buildGeneralAdvice(routine),
-
           const SizedBox(height: 36),
-
-          // Action Buttons
           _buildActionButtons(context, viewModel),
-
           const SizedBox(height: 20),
         ],
       ),
@@ -282,7 +267,11 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     );
   }
 
-  Widget _buildExerciseCard(Exercise exercise, int number) {
+  Widget _buildExerciseCard(
+    BuildContext context,
+    Exercise exercise,
+    int number,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(24),
@@ -365,6 +354,31 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
           ),
 
           const SizedBox(height: 20),
+
+          // Watch Video Button
+          if (exercise.videoUrl != null && exercise.videoUrl!.isNotEmpty) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: () => _launchVideo(context, exercise.videoUrl!),
+                icon: const Icon(Icons.play_circle_filled, size: 28),
+                label: const Text(
+                  'Watch Video Tutorial',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[600],
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // Description
           if (exercise.description.isNotEmpty) ...[
@@ -513,6 +527,63 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     );
   }
 
+  // Launch YouTube video
+  Future<void> _launchVideo(BuildContext context, String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+
+      // Try to launch
+      bool launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication, // Opens in YouTube app or browser
+      );
+
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Could not open video. Please check your internet connection.',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Error opening video: ${e.toString()}',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildGeneralAdvice(ExerciseRoutine routine) {
     if (routine.generalAdvice.isEmpty) return const SizedBox.shrink();
 
@@ -572,38 +643,34 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // View/Edit Preferences Button
-        SizedBox(
-          height: 64,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              // Don't reset, just go back to see preferences
-              context.pop();
-            },
-            icon: const Icon(Icons.arrow_back, size: 28),
-            label: const Text(
-              'Back to Preferences',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.grey[700],
-              side: BorderSide(color: Colors.grey[400]!, width: 2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ),
+        // SizedBox(
+        //   height: 64,
+        //   child: OutlinedButton.icon(
+        //     onPressed: () {
+        //       // Use context.go to refresh the current tab with the skip parameter
+        //       context.go('/elderly/exercise?skipAuto=true');
+        //     },
+        //     icon: const Icon(Icons.settings, size: 28),
+        //     label: const Text(
+        //       'Change Preferences',
+        //       style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        //     ),
+        //     style: OutlinedButton.styleFrom(
+        //       foregroundColor: Colors.grey[700],
+        //       side: BorderSide(color: Colors.grey[400]!, width: 2),
+        //       shape: RoundedRectangleBorder(
+        //         borderRadius: BorderRadius.circular(16),
+        //       ),
+        //     ),
+        //   ),
+        // ),
         const SizedBox(height: 16),
-
-        // Generate New Routine Button
         SizedBox(
           height: 64,
           child: ElevatedButton.icon(
             onPressed: () {
-              // Reset and go back to preferences
               viewModel.reset();
-              context.pop();
+              context.go('/elderly/exercise');
             },
             icon: const Icon(Icons.refresh, size: 28),
             label: const Text(
@@ -621,8 +688,6 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-
-        // Back to Home Button
         SizedBox(
           height: 64,
           child: OutlinedButton.icon(
