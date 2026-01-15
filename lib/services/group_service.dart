@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:latest_fyp/models/group_member_model.dart';
 
 class GroupService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -215,6 +216,7 @@ class GroupService {
       QuerySnapshot snapshot = await _firestore
           .collection('reminders')
           .where('groupId', isEqualTo: groupId)
+          .where('isCompleted', isEqualTo: false)
           .get();
 
       return snapshot.docs.length;
@@ -414,5 +416,144 @@ class GroupService {
     String adminId = groupData['adminId'];
     List<dynamic> memberIds = groupData['memberIds'] ?? [];
     return adminId == userId || memberIds.contains(userId);
+  }
+
+  // Add these methods to your existing GroupService class
+
+  /// Get all members in a group with their details
+  Future<List<GroupMemberModel>> getGroupMembers(String groupId) async {
+    try {
+      // Get group document
+      DocumentSnapshot groupDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .get();
+
+      if (!groupDoc.exists) {
+        throw Exception('Group not found');
+      }
+
+      Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
+      String adminId = groupData['adminId'];
+      List<dynamic> memberIds = groupData['memberIds'] ?? [];
+
+      List<GroupMemberModel> members = [];
+
+      // Fetch admin details
+      DocumentSnapshot adminDoc = await _firestore
+          .collection('users')
+          .doc(adminId)
+          .get();
+
+      if (adminDoc.exists) {
+        Map<String, dynamic> adminData =
+            adminDoc.data() as Map<String, dynamic>;
+        members.add(
+          GroupMemberModel(
+            uid: adminId,
+            name: adminData['name'] ?? 'Unknown',
+            email: adminData['email'] ?? '',
+            role: adminData['role'] ?? 'caregiver',
+            isAdmin: true,
+            joinedAt: groupData['createdAt'] != null
+                ? (groupData['createdAt'] as Timestamp).toDate()
+                : null,
+          ),
+        );
+      }
+
+      // Fetch member details
+      for (String memberId in memberIds) {
+        if (memberId == adminId) continue; // Skip admin (already added)
+
+        DocumentSnapshot memberDoc = await _firestore
+            .collection('users')
+            .doc(memberId)
+            .get();
+
+        if (memberDoc.exists) {
+          Map<String, dynamic> memberData =
+              memberDoc.data() as Map<String, dynamic>;
+          members.add(
+            GroupMemberModel(
+              uid: memberId,
+              name: memberData['name'] ?? 'Unknown',
+              email: memberData['email'] ?? '',
+              role: memberData['role'] ?? 'elderly',
+              isAdmin: false,
+              joinedAt: null,
+            ),
+          );
+        }
+      }
+
+      return members;
+    } catch (e) {
+      throw Exception('Failed to fetch group members: $e');
+    }
+  }
+
+  /// Remove a member from the group
+  Future<void> removeMemberFromGroup(String groupId, String userId) async {
+    try {
+      // Get group document
+      DocumentSnapshot groupDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .get();
+
+      if (!groupDoc.exists) {
+        throw Exception('Group not found');
+      }
+
+      Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
+      String adminId = groupData['adminId'];
+
+      // Prevent admin from removing themselves
+      if (userId == adminId) {
+        throw Exception('Admin cannot remove themselves from the group');
+      }
+
+      // Remove user from memberIds array
+      await _firestore.collection('groups').doc(groupId).update({
+        'memberIds': FieldValue.arrayRemove([userId]),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // Optional: Delete user's reminders in this group
+      // You can uncomment this if you want to remove reminders when user is removed
+      /*
+    QuerySnapshot reminderSnapshot = await _firestore
+        .collection('reminders')
+        .where('groupId', isEqualTo: groupId)
+        .where('assignedTo', isEqualTo: userId)
+        .get();
+
+    WriteBatch batch = _firestore.batch();
+    for (var doc in reminderSnapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    */
+    } catch (e) {
+      throw Exception('Failed to remove member: $e');
+    }
+  }
+
+  /// Check if user is admin of a group
+  Future<bool> isGroupAdmin(String groupId, String userId) async {
+    try {
+      DocumentSnapshot groupDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .get();
+
+      if (!groupDoc.exists) return false;
+
+      Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
+      return groupData['adminId'] == userId;
+    } catch (e) {
+      return false;
+    }
   }
 }

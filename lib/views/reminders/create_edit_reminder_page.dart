@@ -551,17 +551,35 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     BuildContext context,
     CreateEditReminderViewModel viewModel,
   ) {
+    final bool hasVoiceNote =
+        viewModel.existingVoiceNoteUrl != null ||
+        viewModel.voiceNoteFile != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildLabel('Voice Note'),
         const SizedBox(height: 8),
 
-        if (viewModel.existingVoiceNoteUrl != null ||
-            viewModel.voiceNoteFile != null)
+        if (hasVoiceNote)
           _buildVoiceNotePlayback(context, viewModel)
+        else if (viewModel.isCaregiver)
+          _buildVoiceNoteRecordButton(context, viewModel)
         else
-          _buildVoiceNoteRecordButton(context, viewModel),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Center(
+              child: Text(
+                'No voice note',
+                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              ),
+            ),
+          ),
       ],
     );
   }

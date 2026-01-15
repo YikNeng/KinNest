@@ -157,10 +157,15 @@ class UserService {
     if (token == null) return;
 
     try {
-      await _firestore.collection('users').doc(userId).update({
+      // Use set with merge: true (Upsert).
+      // This is safer than update() because it creates the field if it's missing
+      // and won't crash if the user document is slightly out of sync.
+      await _firestore.collection('users').doc(userId).set({
         'fcmToken': token,
         'lastTokenUpdate': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
+
+      print('FCM Token saved for user: $userId');
     } catch (e) {
       print('Error saving token: $e');
     }

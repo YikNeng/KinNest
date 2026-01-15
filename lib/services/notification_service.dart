@@ -122,4 +122,75 @@ class NotificationService {
       print('Failed to notify group: $e');
     }
   }
+
+  /// 4. Notify Caregivers: Elderly completes a reminder
+  Future<void> notifyCaregiversOfCompletion(
+    String groupId,
+    String elderlyName,
+    String reminderTitle,
+  ) async {
+    try {
+      Map<String, dynamic>? groupData = await _groupService.getGroupDetails(
+        groupId,
+      );
+      if (groupData == null) return;
+
+      List<dynamic> members = groupData['members'] ?? [];
+
+      // Filter for caregivers/admins
+      List<String> caregiverIds = members
+          .where((m) => m['role'] == 'caregiver' || m['isAdmin'] == true)
+          .map((m) => m['uid'] as String)
+          .toList();
+
+      await _sendNotification(
+        recipientIds: caregiverIds,
+        title: 'Task Completed',
+        body: '$elderlyName completed: $reminderTitle',
+        type: 'reminder_completed',
+        relatedId: groupId,
+      );
+    } catch (e) {
+      print('Failed to notify completion: $e');
+    }
+  }
+
+  /// 5. Notify Caregivers: Reminder becomes overdue (alarm timeout)
+  /// This is called when the alarm times out after 2 minutes without user action
+  Future<void> notifyCaregiversOfOverdue(
+    String groupId,
+    String elderlyName,
+    String reminderTitle,
+  ) async {
+    try {
+      Map<String, dynamic>? groupData = await _groupService.getGroupDetails(
+        groupId,
+      );
+      if (groupData == null) return;
+
+      List<dynamic> members = groupData['members'] ?? [];
+
+      // Filter for caregivers/admins
+      List<String> caregiverIds = members
+          .where((m) => m['role'] == 'caregiver' || m['isAdmin'] == true)
+          .map((m) => m['uid'] as String)
+          .toList();
+
+      await _sendNotification(
+        recipientIds: caregiverIds,
+        title: '⚠️ Overdue Reminder',
+        body: '$elderlyName did not respond to: $reminderTitle',
+        type: 'reminder_overdue',
+        relatedId: groupId,
+        extraData: {
+          'priority': 'high',
+          'elderlyName': elderlyName,
+          'reminderTitle': reminderTitle,
+        },
+      );
+      print('Notified caregivers of overdue: $caregiverIds');
+    } catch (e) {
+      print('Failed to notify overdue: $e');
+    }
+  }
 }

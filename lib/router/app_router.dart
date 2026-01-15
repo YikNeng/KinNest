@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latest_fyp/views/caregiver/manage_group_members_page.dart';
 import 'package:provider/provider.dart';
 import 'package:latest_fyp/views/caregiver/caregiver_home_page.dart';
 import 'package:latest_fyp/views/caregiver/create_group_page.dart';
@@ -21,7 +22,6 @@ import '../views/caregiver/caregiver_bottom_nav_scaffold.dart';
 
 // Import elderly pages
 import '../views/elderly/elderly_home_page.dart';
-import '../views/elderly/elderly_reminders_page.dart';
 import '../views/elderly/elderly_exercise_page.dart';
 import '../views/elderly/elderly_music_page.dart';
 import '../views/elderly/elderly_profile_page.dart';
@@ -269,14 +269,7 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
         path: '/caregiver/groups/:groupId/members',
         builder: (context, state) {
           final groupId = state.pathParameters['groupId']!;
-          return Scaffold(
-            appBar: AppBar(title: const Text('Manage Members')),
-            body: Center(
-              child: Text(
-                'Member Management Page\nGroup ID: $groupId\n\nComing Soon',
-              ),
-            ),
-          );
+          return ManageGroupMembersPage(groupId: groupId);
         },
       ),
 

@@ -128,6 +128,7 @@ class ReminderService {
 
         updateData['scheduledTime'] = Timestamp.fromDate(nextScheduledTime);
         updateData['isCompleted'] = false; // Reset for next occurrence
+        updateData['isOverdueNotified'] = false;
         updateData['completedAt'] =
             Timestamp.now(); // Keep last completion timestamp reference
       }
@@ -377,18 +378,23 @@ class ReminderService {
   }
 
   /// Delete reminder (caregiver only)
+  // In lib/services/reminder_service.dart
+
   Future<void> deleteReminder(String reminderId) async {
     try {
-      await _firestore.collection('reminders').doc(reminderId).delete();
+      // 1. FETCH FIRST (Move this up)
       DocumentSnapshot doc = await _firestore
           .collection('reminders')
           .doc(reminderId)
           .get();
+
       if (doc.exists) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
+        // 2. DELETE SECOND
         await _firestore.collection('reminders').doc(reminderId).delete();
 
+        // 3. NOTIFY
         String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
         Map<String, dynamic>? user = await getUserDetails(currentUserId);
 
@@ -515,6 +521,7 @@ class ReminderService {
         'repeatType': repeatType,
         'voiceNoteUrl': voiceNoteUrl,
         'isCompleted': false,
+        'isOverdueNotified': false,
         'completedAt': null,
         'completedBy': null,
         'createdAt': FieldValue.serverTimestamp(),
@@ -601,6 +608,7 @@ class ReminderService {
         'repeatType': repeatType,
         'voiceNoteUrl': voiceNoteUrl,
         'updatedAt': FieldValue.serverTimestamp(),
+        'isOverdueNotified': false,
       };
 
       // Handle repeatDays update
@@ -1113,8 +1121,6 @@ class ReminderService {
           : (status == 'overdue' ? 'Completed late' : 'On time'),
     });
 
-    // --- FIX STARTS HERE ---
-
     // 3. Update Active Reminder based on Repeat Type
     if (repeatInterval == 'once') {
       // CASE A: One-time Task -> Just mark as COMPLETED
@@ -1135,9 +1141,36 @@ class ReminderService {
         'scheduledTime': Timestamp.fromDate(nextDueDate),
         'lastCompleted': FieldValue.serverTimestamp(),
         'isCompleted': false, // Keep false so it stays active for next cycle
+        'isOverdueNotified': false,
       });
     }
 
+    try {
+      // 1. Get current user (Elderly)
+      String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+      // 2. Get the reminder to find the Group ID
+      DocumentSnapshot reminderDoc = await _firestore
+          .collection('reminders')
+          .doc(reminderId)
+          .get();
+      String groupId = '';
+      if (reminderDoc.exists) {
+        groupId = (reminderDoc.data() as Map<String, dynamic>)['groupId'] ?? '';
+      }
+
+      // 3. Notify if we have a Group ID
+      if (groupId.isNotEmpty) {
+        Map<String, dynamic>? user = await getUserDetails(currentUserId);
+        await _notificationService.notifyCaregiversOfCompletion(
+          groupId,
+          user?['name'] ?? 'Elderly',
+          title,
+        );
+      }
+    } catch (e) {
+      print("Error sending completion notification: $e");
+    }
     await batch.commit();
   }
 
@@ -1153,72 +1186,63 @@ class ReminderService {
     final now = DateTime.now();
 
     for (var reminder in reminders) {
-      // Skip if already completed
       if (reminder['isCompleted'] == true) continue;
 
       Timestamp scheduledTs = reminder['scheduledTime'];
       DateTime scheduledDateTime = scheduledTs.toDate();
 
-      // Check if the time has passed
+      // Only process if it is SIGNIFICANTLY late (e.g., 24 hours)
+      // or if it is a recurring task that needs rescheduling.
       if (scheduledDateTime.isBefore(now)) {
-        hasUpdates = true;
         String reminderId = reminder['reminderId'];
         String repeatType = reminder['repeatType'] ?? 'once';
 
-        // --- A. Create History Record (Permanent "Missed" Log) ---
+        // --- FIXED LOGIC START ---
+
+        if (repeatType == 'once') {
+          // DO NOTHING.
+          // Leave 'isCompleted' as false so the UI shows it as RED/OVERDUE.
+          continue;
+        }
+
+        // --- FIXED LOGIC END ---
+
+        // Only reschedule Recurring tasks
+        hasUpdates = true;
+
+        // ... (Keep your recurring logic below intact) ...
+        List<int>? repeatDays;
+        if (reminder['repeatDays'] != null) {
+          repeatDays = List<int>.from(reminder['repeatDays']);
+        }
+
+        DateTime nextTime = scheduledDateTime;
+        while (nextTime.isBefore(now)) {
+          nextTime = _calculateNextOccurrence(nextTime, repeatType, repeatDays);
+        }
+
+        // Log the missed occurrence to history
         DocumentReference historyRef = _firestore
             .collection('reminder_history')
             .doc();
-
         batch.set(historyRef, {
           'originalReminderId': reminderId,
           'groupId': reminder['groupId'],
           'taskTitle': reminder['title'],
-          'scheduledFor': scheduledTs, // The date they missed
-          'status': 'missed', // NEW STATUS
+          'scheduledFor': scheduledTs,
+          'status': 'missed',
           'loggedAt': FieldValue.serverTimestamp(),
-          'notes': 'Auto-archived: Time passed without completion',
         });
 
-        // --- B. Update Active Reminder (Remove from view or Reschedule) ---
-        DocumentReference reminderRef = _firestore
-            .collection('reminders')
-            .doc(reminderId);
-
-        if (repeatType == 'once') {
-          // One-time task: Mark complete (hidden) so it disappears from list
-          batch.update(reminderRef, {
-            'isCompleted': true,
-            'completionStatus': 'missed', // Internal flag
-          });
-        } else {
-          // Recurring task: Jump to the NEXT FUTURE Occurrence
-          // If user missed 3 days, this loop skips all 3 to find the next valid slot
-          List<int>? repeatDays;
-          if (reminder['repeatDays'] != null) {
-            repeatDays = List<int>.from(reminder['repeatDays']);
-          }
-
-          DateTime nextTime = scheduledDateTime;
-
-          // Keep advancing until we find a time in the future
-          while (nextTime.isBefore(now)) {
-            nextTime = _calculateNextOccurrence(
-              nextTime,
-              repeatType,
-              repeatDays,
-            );
-          }
-
-          batch.update(reminderRef, {
-            'scheduledTime': Timestamp.fromDate(nextTime),
-            'isCompleted': false, // Keep it active for the new date
-          });
-        }
+        // Update the main reminder to the new future time
+        batch.update(_firestore.collection('reminders').doc(reminderId), {
+          'scheduledTime': Timestamp.fromDate(nextTime),
+          'isCompleted': false,
+          'isOverdueNotified': false,
+        });
       }
     }
 
-    // Commit all changes atomically
     if (hasUpdates) {
       await batch.commit();
     }

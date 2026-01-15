@@ -28,6 +28,7 @@ class RegisterViewModel extends ChangeNotifier {
   String? _errorMessage;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isDisposed = false;
 
   // Mobility level options
   final List<String> mobilityLevels = ['Low', 'Medium', 'High'];
@@ -180,6 +181,8 @@ class RegisterViewModel extends ChangeNotifier {
   /// Register new user
   /// Returns user role on success, null on failure
   Future<bool> register() async {
+    if (_isDisposed) return false;
+
     // Clear previous errors
     _errorMessage = null;
 
@@ -190,8 +193,9 @@ class RegisterViewModel extends ChangeNotifier {
 
     // Start loading
     _isLoading = true;
-    notifyListeners();
-
+    if (!_isDisposed) {
+      notifyListeners();
+    }
     try {
       // Step 1: Create user in Firebase Auth
       String uid = await _authService.registerWithEmailPassword(
@@ -230,20 +234,25 @@ class RegisterViewModel extends ChangeNotifier {
       }
 
       // Registration successful
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
       return true; // GoRouter will handle redirect automatically
     } catch (e) {
       // Registration failed
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+        notifyListeners();
+      }
       return false;
     }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();

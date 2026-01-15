@@ -12,6 +12,7 @@ class CaregiverHomeViewModel extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
   String? _caregiverName;
+  bool _isDisposed = false;
 
   // Getters
   Map<String, dynamic>? get nearestReminder => _nearestReminder;
@@ -41,7 +42,9 @@ class CaregiverHomeViewModel extends ChangeNotifier {
   /// Initialize - fetch caregiver name and nearest reminder
   Future<void> _initialize() async {
     _isLoading = true;
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
 
     try {
       // Fetch caregiver name
@@ -50,12 +53,16 @@ class CaregiverHomeViewModel extends ChangeNotifier {
       // Fetch nearest upcoming reminder
       await _fetchNearestReminder();
 
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     } catch (e) {
-      _errorMessage = 'Failed to load dashboard: $e';
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = 'Failed to load dashboard: $e';
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // Optional but recommended for custom foreground UI
-import 'package:latest_fyp/services/user_service.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
+import 'package:latest_fyp/services/user_service.dart';
 import 'providers/auth_state_provider.dart';
 import 'router/app_router.dart';
 
-// 1. Initialize Local Notifications (Add this global variable)
+// 1. Initialize Local Notifications (Global)
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
@@ -23,6 +23,7 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await Firebase.initializeApp();
 
   // 3. Create the Channel (Critical for Android Pop-ups)
@@ -32,24 +33,34 @@ void main() async {
       >()
       ?.createNotificationChannel(channel);
 
-  // 4. Force Foreground Notifications (iOS/Android)
-  // This makes the notification pop up even if the app is OPEN
+  // 4. Force Foreground Notifications
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
     alert: true,
     badge: true,
     sound: true,
   );
 
-  // Check for user
-  User? currentUser = FirebaseAuth.instance.currentUser;
-
-  // Start listening for notifications
-  setupNotifications(currentUser?.uid);
+  FirebaseAuth.instance.authStateChanges().listen((User? user) {
+    if (user != null) {
+      print(
+        "Auth Listener: User logged in (${user.uid}). Setting up notifications...",
+      );
+      setupNotifications(user.uid);
+    } else {
+      print("Auth Listener: User is logged out.");
+    }
+  });
 
   runApp(const MyApp());
 }
 
+// --------------------------------------------------------------------------
+// Notification Setup Logic
+// --------------------------------------------------------------------------
 Future<void> setupNotifications(String? userId) async {
+  // Safety check: Don't run if no user ID provided
+  if (userId == null) return;
+
   FirebaseMessaging messaging = FirebaseMessaging.instance;
 
   // Request Permission
@@ -62,17 +73,23 @@ Future<void> setupNotifications(String? userId) async {
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
     print('User granted permission');
 
-    // Get & Save Token
+    // 1. Get the current token immediately
     String? token = await messaging.getToken();
-    if (userId != null && token != null) {
-      await UserService().saveUserToken(userId, token);
 
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-        UserService().saveUserToken(userId, newToken);
-      });
+    if (token != null) {
+      // Save it to Firestore using your UserService
+      // (Ensure your UserService.saveUserToken uses SetOptions(merge: true))
+      print('Saving FCM Token for user: $userId');
+      await UserService().saveUserToken(userId, token);
     }
 
-    // 5. Handle Foreground Messages (Optional debugging)
+    // 2. Listen for future token refreshes (e.g. while app is running)
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+      print('FCM Token refreshed. Updating Firestore...');
+      UserService().saveUserToken(userId, newToken);
+    });
+
+    // 3. Handle Foreground Messages (Optional debugging)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       print('Got a message whilst in the foreground!');
       print('Message data: ${message.data}');
@@ -80,10 +97,11 @@ Future<void> setupNotifications(String? userId) async {
       if (message.notification != null) {
         print('Message also contained a notification: ${message.notification}');
 
-        // If you want to show a custom local notification:
+        // Optional: Show local notification manually if needed
         /*
         RemoteNotification? notification = message.notification;
         AndroidNotification? android = message.notification?.android;
+
         if (notification != null && android != null) {
           flutterLocalNotificationsPlugin.show(
             notification.hashCode,
@@ -94,7 +112,7 @@ Future<void> setupNotifications(String? userId) async {
                 channel.id,
                 channel.name,
                 channelDescription: channel.description,
-                icon: 'launch_background', // or your icon name
+                icon: 'launch_background',
               ),
             ),
           );
@@ -102,6 +120,8 @@ Future<void> setupNotifications(String? userId) async {
         */
       }
     });
+  } else {
+    print('User declined or has not accepted permission');
   }
 }
 
@@ -116,8 +136,9 @@ class MyApp extends StatelessWidget {
         builder: (context) {
           final authStateProvider = Provider.of<AuthStateProvider>(
             context,
-            listen: false,
+            listen: true, // Listen to changes to trigger re-builds on login
           );
+
           final router = createRouter(authStateProvider);
 
           return MaterialApp.router(

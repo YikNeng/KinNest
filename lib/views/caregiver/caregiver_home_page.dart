@@ -68,9 +68,6 @@ class _CaregiverHomePageBody extends StatelessWidget {
 
                 const SizedBox(height: 32),
 
-                // Future Features Placeholder
-                _buildFutureFeaturesSection(context),
-
                 const SizedBox(height: 20), // Extra space at bottom for nav bar
               ]),
             ),
@@ -210,7 +207,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
     bool isRecurring = viewModel.isRecurring;
 
     return InkWell(
-      onTap: () => _navigateToReminderList(context, viewModel),
+      onTap: () => _navigateToReminderDetail(context, viewModel),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         padding: const EdgeInsets.all(20),
@@ -394,7 +391,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
-                onPressed: () => _navigateToReminderList(context, viewModel),
+                onPressed: () => _navigateToReminderDetail(context, viewModel),
                 icon: const Icon(Icons.arrow_forward, size: 20),
                 label: const Text(
                   'View Details',
@@ -448,100 +445,6 @@ class _CaregiverHomePageBody extends StatelessWidget {
     );
   }
 
-  // Future Features Section
-  Widget _buildFutureFeaturesSection(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.lightbulb_outline,
-                size: 28,
-                color: Colors.orange[700],
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Coming Soon',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildFeatureItem(
-            icon: Icons.analytics,
-            title: 'Completion Reports',
-            description: 'Track task completion status per elderly',
-          ),
-          const SizedBox(height: 12),
-          _buildFeatureItem(
-            icon: Icons.insights,
-            title: 'Health Insights',
-            description: 'View trends and patterns in care routines',
-          ),
-          const SizedBox(height: 12),
-          _buildFeatureItem(
-            icon: Icons.notifications_active,
-            title: 'Smart Alerts',
-            description: 'Get notified about missed reminders',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFeatureItem({
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.orange[50],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, size: 24, color: Colors.orange[700]),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                description,
-                style: TextStyle(fontSize: 15, color: Colors.grey[600]),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
   // Tag Widget
   Widget _buildTag({
     required String label,
@@ -587,14 +490,28 @@ class _CaregiverHomePageBody extends StatelessWidget {
     return name[0].toUpperCase();
   }
 
-  // Navigate to Reminder List
-  void _navigateToReminderList(
+  // Navigate to Nearest Upcoming Reminder Detail/Edit Page
+  Future<void> _navigateToReminderDetail(
     BuildContext context,
     CaregiverHomeViewModel viewModel,
-  ) {
-    String groupId = viewModel.groupId;
-    if (groupId.isNotEmpty) {
-      context.push('/caregiver/groups/$groupId/reminders');
+  ) async {
+    // Get the nearest upcoming reminder
+    Map<String, dynamic>? nearestReminder = viewModel.nearestReminder;
+
+    if (nearestReminder != null) {
+      String groupId = nearestReminder['groupId'];
+      String reminderId = nearestReminder['reminderId'];
+
+      // Navigate to edit page
+      context.push('/caregiver/groups/$groupId/reminders/$reminderId/edit');
+    } else {
+      // No upcoming reminders, show message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No upcoming reminders found'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 }

@@ -228,7 +228,8 @@ class ReminderViewModel extends ChangeNotifier {
     DateTime now = DateTime.now();
     var list = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
-      return ts.toDate().isAfter(now) || ts.toDate().isAtSameMomentAs(now);
+      return (ts.toDate().isAfter(now) || ts.toDate().isAtSameMomentAs(now)) &&
+          r['isCompleted'] != true;
     });
     if (isElderly) list = list.where((r) => r['assignedTo'] == _currentUserId);
     return list.length;

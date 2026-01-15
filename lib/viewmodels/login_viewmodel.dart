@@ -12,6 +12,7 @@ class LoginViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _obscurePassword = true;
+  bool _isDisposed = false;
 
   // Getters
   bool get isLoading => _isLoading;
@@ -20,12 +21,14 @@ class LoginViewModel extends ChangeNotifier {
 
   /// Toggle password visibility
   void togglePasswordVisibility() {
+    if (_isDisposed) return;
     _obscurePassword = !_obscurePassword;
     notifyListeners();
   }
 
   /// Clear error message
   void clearError() {
+    if (_isDisposed) return;
     _errorMessage = null;
     notifyListeners();
   }
@@ -69,6 +72,8 @@ class LoginViewModel extends ChangeNotifier {
 
   /// Login method - returns true on success, false on failure
   Future<bool> login() async {
+    if (_isDisposed) return false;
+
     // Clear previous errors
     _errorMessage = null;
 
@@ -79,7 +84,9 @@ class LoginViewModel extends ChangeNotifier {
 
     // Start loading
     _isLoading = true;
-    notifyListeners();
+    if (!_isDisposed) {
+      notifyListeners();
+    }
 
     try {
       // Call AuthService to login
@@ -90,20 +97,25 @@ class LoginViewModel extends ChangeNotifier {
       );
 
       // Login successful
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
       return true; // GoRouter redirect will handle navigation
     } catch (e) {
       // Login failed
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+        notifyListeners();
+      }
       return false;
     }
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
     emailController.dispose();
     passwordController.dispose();
     super.dispose();

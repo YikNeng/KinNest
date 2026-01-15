@@ -276,12 +276,9 @@ class InvitationService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // Add user to memberIds if elderly
-      if (role.toLowerCase() == 'elderly') {
-        batch.update(groupRef, {
-          'memberIds': FieldValue.arrayUnion([userId]),
-        });
-      }
+      batch.update(groupRef, {
+        'memberIds': FieldValue.arrayUnion([userId]),
+      });
 
       // Update user's groupIds
       DocumentReference userRef = _firestore.collection('users').doc(userId);
