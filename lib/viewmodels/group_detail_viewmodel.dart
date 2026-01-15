@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/group_service.dart';
@@ -15,6 +16,12 @@ class GroupDetailViewModel extends ChangeNotifier {
   List<Map<String, dynamic>> _upcomingReminders = [];
   bool _isLoading = true;
   String? _errorMessage;
+
+  // Stream subscription
+  StreamSubscription<Map<String, dynamic>?>? _groupSubscription;
+
+  // Disposal tracking
+  bool _isDisposed = false;
 
   // Getters
   Map<String, dynamic>? get groupData => _groupData;
@@ -41,61 +48,88 @@ class GroupDetailViewModel extends ChangeNotifier {
   /// Initialize group details stream (real-time updates)
   void initializeGroupStream() {
     _isLoading = true;
-    notifyListeners();
+
+    // Only notify if not disposed
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+
+    // Cancel previous subscription if exists
+    _groupSubscription?.cancel();
 
     // Listen to group details
-    _groupService
+    _groupSubscription = _groupService
         .getGroupDetailsStream(groupId)
         .listen(
           (groupData) {
-            if (groupData != null) {
-              _groupData = groupData;
-              _errorMessage = null;
+            // Only update if not disposed
+            if (!_isDisposed) {
+              if (groupData != null) {
+                _groupData = groupData;
+                _errorMessage = null;
 
-              // Fetch reminders after group data is loaded
-              _fetchReminders();
-            } else {
-              _errorMessage = 'Group not found';
-              _isLoading = false;
+                // Fetch reminders after group data is loaded
+                _fetchReminders();
+              } else {
+                _errorMessage = 'Group not found';
+                _isLoading = false;
+              }
+              notifyListeners();
             }
-            notifyListeners();
           },
           onError: (error) {
-            _errorMessage = 'Failed to load group: $error';
-            _isLoading = false;
-            notifyListeners();
+            // Only update if not disposed
+            if (!_isDisposed) {
+              _errorMessage = 'Failed to load group: $error';
+              _isLoading = false;
+              notifyListeners();
+            }
           },
         );
   }
 
   /// Fetch upcoming reminders
   Future<void> _fetchReminders() async {
+    if (_isDisposed) return;
+
     try {
       _upcomingReminders = await _reminderService.getGroupUpcomingReminders(
         groupId,
       );
-      _isLoading = false;
-      notifyListeners();
+
+      if (!_isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     } catch (e) {
       // Don't fail the whole page if reminders fail to load
-      _upcomingReminders = [];
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _upcomingReminders = [];
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   /// Refresh all data
   Future<void> refresh() async {
+    if (_isDisposed) return;
+
     try {
       _groupData = await _groupService.getGroupDetails(groupId);
       _upcomingReminders = await _reminderService.getGroupUpcomingReminders(
         groupId,
       );
-      _errorMessage = null;
-      notifyListeners();
+
+      if (!_isDisposed) {
+        _errorMessage = null;
+        notifyListeners();
+      }
     } catch (e) {
-      _errorMessage = 'Failed to refresh data';
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = 'Failed to refresh data';
+        notifyListeners();
+      }
     }
   }
 
@@ -127,5 +161,12 @@ class GroupDetailViewModel extends ChangeNotifier {
   /// Check if reminder is completed
   bool isReminderCompleted(Map<String, dynamic> reminder) {
     return reminder['isCompleted'] == true;
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _groupSubscription?.cancel();
+    super.dispose();
   }
 }

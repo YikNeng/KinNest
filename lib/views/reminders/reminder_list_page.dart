@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../viewmodels/reminder_list_viewmodel.dart';
+import '../../viewmodels/reminder_viewmodel.dart';
 
 class ReminderListPage extends StatelessWidget {
-  final String groupId;
-
-  const ReminderListPage({Key? key, required this.groupId}) : super(key: key);
+  const ReminderListPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => ReminderListViewModel(groupId: groupId),
+      create: (_) => ReminderViewModel(),
       child: const _ReminderListPageBody(),
     );
   }
@@ -23,7 +21,7 @@ class _ReminderListPageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final viewModel = Provider.of<ReminderListViewModel>(context);
+    final viewModel = Provider.of<ReminderViewModel>(context);
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
@@ -35,23 +33,27 @@ class _ReminderListPageBody extends StatelessWidget {
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         elevation: 2,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, size: 28),
-          onPressed: () => context.pop(),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: _buildFilterTabs(context, viewModel),
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: _buildBody(context, viewModel),
-      floatingActionButton: viewModel.isCaregiver
+      // Floating Action Button - For BOTH caregivers and elderly
+      floatingActionButton: viewModel.selectedGroup != null
           ? FloatingActionButton.extended(
-              onPressed: () => _navigateToCreateReminder(context, viewModel),
+              onPressed: () {
+                // Navigate to create reminder page with selected group ID
+                String groupId = viewModel.selectedGroup!['groupId'];
+
+                // Different routes for caregiver vs elderly
+                if (viewModel.isCaregiver) {
+                  context.push('/caregiver/groups/$groupId/reminders/create');
+                } else if (viewModel.isElderly) {
+                  context.push('/elderly/groups/$groupId/reminders/create');
+                }
+              },
               backgroundColor: Colors.blue[700],
               icon: const Icon(Icons.add, size: 28),
               label: const Text(
-                'Add Reminder',
+                'New Reminder',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             )
@@ -59,98 +61,9 @@ class _ReminderListPageBody extends StatelessWidget {
     );
   }
 
-  // Filter tabs
-  Widget _buildFilterTabs(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-  ) {
-    return Container(
-      color: Colors.blue[700],
-      child: Row(
-        children: [
-          _buildFilterTab(
-            context,
-            viewModel,
-            'All',
-            'all',
-            viewModel.reminders.length,
-          ),
-          _buildFilterTab(
-            context,
-            viewModel,
-            'Pending',
-            'pending',
-            viewModel.pendingCount,
-          ),
-          _buildFilterTab(
-            context,
-            viewModel,
-            'Completed',
-            'completed',
-            viewModel.completedCount,
-          ),
-          _buildFilterTab(
-            context,
-            viewModel,
-            'Overdue',
-            'overdue',
-            viewModel.overdueCount,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterTab(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    String label,
-    String mode,
-    int count,
-  ) {
-    bool isSelected = viewModel.filterMode == mode;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => viewModel.setFilterMode(mode),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isSelected ? Colors.white : Colors.transparent,
-                width: 3,
-              ),
-            ),
-          ),
-          child: Column(
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.white.withOpacity(0.9),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context, ReminderListViewModel viewModel) {
+  Widget _buildBody(BuildContext context, ReminderViewModel viewModel) {
     // Loading state
-    if (viewModel.isLoading) {
+    if (viewModel.isLoading && viewModel.groups.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -166,575 +79,518 @@ class _ReminderListPageBody extends StatelessWidget {
       );
     }
 
-    // Error state
-    if (viewModel.errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 80, color: Colors.red[700]),
-              const SizedBox(height: 16),
-              Text(
-                'Error',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                viewModel.errorMessage!,
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                onPressed: () => viewModel.refresh(),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry', style: TextStyle(fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+    // No groups state
+    if (viewModel.groups.isEmpty) {
+      return _buildNoGroupsState(viewModel);
     }
 
-    // Empty state
-    if (!viewModel.hasReminders || viewModel.reminders.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.notifications_none,
-                size: 100,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 24),
-              Text(
-                viewModel.filterMode == 'all'
-                    ? 'No Reminders Yet'
-                    : 'No ${viewModel.filterMode} reminders',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                viewModel.isCaregiver
-                    ? 'Create your first reminder to\nhelp manage care tasks'
-                    : 'No reminders have been\nassigned to you yet',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey[600]),
-              ),
-              if (viewModel.isCaregiver) ...[
-                const SizedBox(height: 32),
-                ElevatedButton.icon(
-                  onPressed: () =>
-                      _navigateToCreateReminder(context, viewModel),
-                  icon: const Icon(Icons.add, size: 24),
-                  label: const Text(
-                    'Create Reminder',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue[700],
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Reminders list
+    // Content
     return RefreshIndicator(
       onRefresh: viewModel.refresh,
       color: Colors.blue[700],
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: viewModel.reminders.length,
-        itemBuilder: (context, index) {
-          final reminder = viewModel.reminders[index];
-          return _buildReminderCard(context, viewModel, reminder);
-        },
+      child: Column(
+        children: [
+          // Group Selector (show for both roles if they have multiple groups)
+          if (viewModel.groups.length > 1)
+            _buildGroupSelector(context, viewModel),
+
+          // Filter Buttons
+          _buildFilterButtons(context, viewModel),
+
+          // Error Message
+          if (viewModel.errorMessage != null) _buildErrorMessage(viewModel),
+
+          // Reminder List
+          Expanded(
+            child: viewModel.isLoading
+                ? Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.blue[700],
+                      strokeWidth: 4,
+                    ),
+                  )
+                : _buildReminderList(context, viewModel),
+          ),
+        ],
       ),
     );
   }
 
-  // Individual reminder card
-  // Updated _buildReminderCard with larger fonts and assigned user display
+  Widget _buildNoGroupsState(ReminderViewModel viewModel) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.group_off, size: 100, color: Colors.grey[400]),
+            const SizedBox(height: 24),
+            Text(
+              viewModel.isCaregiver ? 'No Groups Yet' : 'Not in Any Group',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              viewModel.isCaregiver
+                  ? 'Create a care group to start managing reminders'
+                  : 'Ask your caregiver to invite you to a group',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Group Selector Dropdown
+  Widget _buildGroupSelector(
+    BuildContext context,
+    ReminderViewModel viewModel,
+  ) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.blue[300]!, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.group, color: Colors.blue[700], size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<Map<String, dynamic>>(
+                value: viewModel.selectedGroup,
+                isExpanded: true,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: Colors.blue[700],
+                  size: 32,
+                ),
+                items: viewModel.groups.map((Map<String, dynamic> group) {
+                  return DropdownMenuItem<Map<String, dynamic>>(
+                    value: group,
+                    child: Text(
+                      group['groupName'] ?? 'Unnamed Group',
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (Map<String, dynamic>? newGroup) {
+                  if (newGroup != null) {
+                    viewModel.selectGroup(newGroup);
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Filter Buttons (Upcoming / Past)
+  Widget _buildFilterButtons(
+    BuildContext context,
+    ReminderViewModel viewModel,
+  ) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          // Upcoming Button
+          Expanded(
+            child: _buildFilterButton(
+              context,
+              viewModel,
+              'upcoming',
+              'Upcoming',
+              viewModel.upcomingCount,
+              Icons.schedule,
+            ),
+          ),
+          // Past Button
+          Expanded(
+            child: _buildFilterButton(
+              context,
+              viewModel,
+              'past',
+              'Past',
+              viewModel.pastCount,
+              Icons.history,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterButton(
+    BuildContext context,
+    ReminderViewModel viewModel,
+    String mode,
+    String label,
+    int count,
+    IconData icon,
+  ) {
+    bool isSelected = viewModel.filterMode == mode;
+
+    return GestureDetector(
+      onTap: () => viewModel.setFilterMode(mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.blue[700] : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : Colors.grey[600],
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected ? Colors.white : Colors.grey[400],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                count.toString(),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.blue[700] : Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorMessage(ReminderViewModel viewModel) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.red[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red[300]!, width: 2),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: Colors.red[700], size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              viewModel.errorMessage!,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.red[900],
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: viewModel.clearError,
+            icon: Icon(Icons.close, color: Colors.red[700]),
+            iconSize: 20,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Reminder List
+  Widget _buildReminderList(BuildContext context, ReminderViewModel viewModel) {
+    if (viewModel.reminders.isEmpty) {
+      return _buildEmptyState(viewModel);
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: viewModel.reminders.length,
+      itemBuilder: (context, index) {
+        Map<String, dynamic> reminder = viewModel.reminders[index];
+        return _buildReminderCard(context, viewModel, reminder);
+      },
+    );
+  }
+
+  Widget _buildEmptyState(ReminderViewModel viewModel) {
+    String message = viewModel.filterMode == 'upcoming'
+        ? 'No upcoming reminders'
+        : 'No past reminders';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.notifications_off, size: 100, color: Colors.grey[400]),
+            const SizedBox(height: 24),
+            Text(
+              viewModel.filterMode == 'upcoming'
+                  ? 'No Upcoming Reminders'
+                  : 'No Past Reminders',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildReminderCard(
     BuildContext context,
-    ReminderListViewModel viewModel,
+    ReminderViewModel viewModel,
     Map<String, dynamic> reminder,
   ) {
-    String reminderId = reminder['reminderId'];
-    String title = reminder['title'] ?? 'Untitled';
-    String? description = reminder['description'];
+    String reminderType = reminder['type'] ?? 'normal';
+    IconData icon = viewModel.getReminderIcon(reminderType);
+    Color color = viewModel.getReminderColor(reminderType);
+
+    String? assignedTo = reminder['assignedTo'];
+    String elderlyName = assignedTo != null
+        ? viewModel.getElderlyName(assignedTo)
+        : 'Unassigned';
+
     Timestamp scheduledTime = reminder['scheduledTime'];
-    bool isCompleted = viewModel.isReminderCompleted(reminder);
-    bool isOverdue = viewModel.isOverdue(reminder);
-    bool isRecurring = viewModel.isRecurringReminder(reminder);
-    String typeIcon = viewModel.getReminderTypeIcon(reminder);
-    Color typeColor = viewModel.getReminderTypeColor(reminder);
-    int completionCount = viewModel.getCompletionCount(reminder);
-    DateTime? lastCompletion = viewModel.getLastCompletionDate(reminder);
-    bool isHistoryExpanded = viewModel.isHistoryExpanded(reminderId);
+    String scheduledTimeStr = viewModel.formatScheduledTime(scheduledTime);
 
-    // Get assigned user info
-    String assignedUserName = viewModel.getAssignedUserName(reminder);
-    String assignedUserInitials = viewModel.getAssignedUserInitials(reminder);
+    // Get status for past reminders
+    bool isPast = viewModel.filterMode == 'past';
+    String statusTag = isPast ? viewModel.getStatusTag(reminder) : '';
+    Color statusColor = isPast
+        ? viewModel.getStatusColor(reminder)
+        : Colors.grey;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isOverdue && !isCompleted
-              ? Colors.red.shade200
-              : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: InkWell(
-        onTap: viewModel.isCaregiver
-            ? () => _navigateToEditReminder(context, viewModel, reminderId)
-            : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20), // Increased padding
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header row
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Type icon (larger)
-                  Container(
-                    width: 60, // Increased from 50
-                    height: 60, // Increased from 50
-                    decoration: BoxDecoration(
-                      color: typeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        typeIcon,
-                        style: const TextStyle(
-                          fontSize: 32,
-                        ), // Increased from 28
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-
-                  // Title and assigned user
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title (larger font)
-                        Text(
-                          title,
-                          style: TextStyle(
-                            fontSize: 22, // Increased from 18
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black87,
-                            decoration: isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Assigned user (caregiver view only)
-                        if (viewModel.isCaregiver) ...[
-                          Row(
-                            children: [
-                              // User avatar
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: Colors.blue[100],
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    assignedUserInitials,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.blue[900],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'For $assignedUserName',
-                                  style: TextStyle(
-                                    fontSize: 16, // Larger font
-                                    color: Colors.grey[700],
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  // Checkbox (Elderly) or Status (Caregiver)
-                  if (viewModel.isElderly)
-                    Transform.scale(
-                      scale: 1.3, // Larger checkbox
-                      child: Checkbox(
-                        value: isCompleted,
-                        onChanged: isRecurring && isCompleted
-                            ? null
-                            : (value) => _toggleCompletion(
-                                context,
-                                viewModel,
-                                reminder,
-                              ),
-                        activeColor: Colors.green[700],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    )
-                  else if (isCompleted)
-                    Icon(
-                      Icons.check_circle,
-                      size: 36, // Increased from 32
-                      color: Colors.green[700],
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 16), // Increased spacing
-              // Time (larger font)
-              Row(
-                children: [
-                  Icon(
-                    isOverdue && !isCompleted
-                        ? Icons.warning_amber
-                        : Icons.schedule,
-                    size: 20, // Increased from 16
-                    color: isOverdue && !isCompleted
-                        ? Colors.red[700]
-                        : Colors.grey[600],
-                  ),
-                  const SizedBox(width: 10), // Increased spacing
-                  Expanded(
-                    child: Text(
-                      viewModel.formatReminderTime(scheduledTime),
-                      style: TextStyle(
-                        fontSize: 17, // Increased from 14
-                        color: isOverdue && !isCompleted
-                            ? Colors.red[700]
-                            : Colors.grey[700],
-                        fontWeight: isOverdue && !isCompleted
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-              // Description (larger font)
-              if (description != null && description.isNotEmpty) ...[
-                const SizedBox(height: 14), // Increased spacing
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 17, // Increased from 15
-                    color: Colors.grey[700],
-                    height: 1.5, // Increased line height
-                  ),
-                  maxLines: 3, // Increased from 2
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-
-              // Recurring indicator
-              if (isRecurring) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ), // Increased
-                  decoration: BoxDecoration(
-                    color: Colors.purple[50],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.purple[200]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.repeat, size: 18, color: Colors.purple[700]),
-                      const SizedBox(width: 8),
-                      Text(
-                        'RECURRING',
-                        style: TextStyle(
-                          fontSize: 14, // Increased from 12
-                          fontWeight: FontWeight.bold,
-                          color: Colors.purple[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              // Overdue badge
-              if (isOverdue && !isCompleted) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.red[300]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 18,
-                        color: Colors.red[700],
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'OVERDUE',
-                        style: TextStyle(
-                          fontSize: 14, // Increased from 12
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              // Completed badge
-              if (isCompleted) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.green[300]!),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 18,
-                        color: Colors.green[700],
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'COMPLETED',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
-                        ),
-                      ),
-                      if (lastCompletion != null) ...[
-                        Text(
-                          ' • ${viewModel.formatCompletionDate(Timestamp.fromDate(lastCompletion))}',
-                          style: TextStyle(
-                            fontSize: 14, // Increased from 12
-                            color: Colors.green[700],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
-
-              // Completion history (Caregiver only)
-              if (viewModel.isCaregiver && completionCount > 0) ...[
-                const SizedBox(height: 14),
-                _buildCompletionHistorySection(
-                  context,
-                  viewModel,
-                  reminder,
-                  isHistoryExpanded,
-                ),
-              ],
-
-              // Mark as Done button (Elderly only)
-              if (viewModel.isElderly && !isCompleted) ...[
-                const SizedBox(height: 18), // Increased spacing
-                SizedBox(
-                  width: double.infinity,
-                  height: 56, // Increased from 50
-                  child: ElevatedButton.icon(
-                    onPressed: () =>
-                        _markAsDone(context, viewModel, reminderId),
-                    icon: const Icon(Icons.check, size: 26), // Increased
-                    label: const Text(
-                      'Mark as Done',
-                      style: TextStyle(
-                        fontSize: 20, // Increased from 18
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                  ),
-                ),
-              ],
-
-              // Delete button (Caregiver only)
-              if (viewModel.isCaregiver) ...[
-                const SizedBox(height: 14),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton.icon(
-                      onPressed: () =>
-                          _confirmDelete(context, viewModel, reminderId, title),
-                      icon: Icon(
-                        Icons.delete_outline,
-                        size: 20,
-                        color: Colors.red[700],
-                      ),
-                      label: Text(
-                        'Delete',
-                        style: TextStyle(
-                          fontSize: 16, // Increased from 14
-                          color: Colors.red[700],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ],
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
+        ],
       ),
-    );
-  }
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            String reminderId = reminder['reminderId'];
+            String groupId = reminder['groupId'];
 
-  // Updated completion history section with larger fonts
-  Widget _buildCompletionHistorySection(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    Map<String, dynamic> reminder,
-    bool isExpanded,
-  ) {
-    int completionCount = viewModel.getCompletionCount(reminder);
-    double completionRate = viewModel.getCompletionRate(reminder);
-    bool isRecurring = viewModel.isRecurringReminder(reminder);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: () => viewModel.toggleHistoryExpansion(reminder['reminderId']),
-          child: Container(
-            padding: const EdgeInsets.all(14), // Increased
-            decoration: BoxDecoration(
-              color: Colors.blue[50],
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blue[200]!),
-            ),
+            // Different navigation for caregiver vs elderly
+            if (viewModel.isCaregiver) {
+              // Caregiver can edit
+              context.push(
+                '/caregiver/groups/$groupId/reminders/$reminderId/edit',
+              );
+            } else {
+              // Elderly can edit their own reminders too
+              context.push(
+                '/elderly/groups/$groupId/reminders/$reminderId/edit',
+              );
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(20),
             child: Row(
               children: [
-                Icon(
-                  Icons.history,
-                  color: Colors.blue[700],
-                  size: 22,
-                ), // Increased
-                const SizedBox(width: 14),
+                // Icon
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 32),
+                ),
+
+                const SizedBox(width: 16),
+
+                // Content
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Reminder Title
                       Text(
-                        'Completion History',
-                        style: TextStyle(
-                          fontSize: 16, // Increased from 14
+                        reminder['title'] ?? 'Untitled',
+                        style: const TextStyle(
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blue[900],
+                          color: Colors.black87,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
+
+                      // Show elderly name only for caregiver
+                      if (viewModel.isCaregiver) ...[
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.person,
+                              size: 18,
+                              color: Colors.grey[600],
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                elderlyName,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+
+                      // Scheduled Time
                       Row(
                         children: [
-                          Text(
-                            'Completed $completionCount ${completionCount == 1 ? 'time' : 'times'}',
-                            style: TextStyle(
-                              fontSize: 15, // Increased from 13
-                              color: Colors.blue[800],
+                          Icon(
+                            Icons.schedule,
+                            size: 18,
+                            color: Colors.grey[600],
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              scheduledTimeStr,
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey[700],
+                              ),
                             ),
                           ),
-                          if (isRecurring) ...[
-                            Text(
-                              ' • ${(completionRate * 100).toStringAsFixed(0)}% rate',
+                        ],
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      // Tags Row (Type + Status for past)
+                      Row(
+                        children: [
+                          // Reminder Type Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: color.withOpacity(0.3)),
+                            ),
+                            child: Text(
+                              reminderType.toUpperCase(),
                               style: TextStyle(
-                                fontSize: 15, // Increased
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue[800],
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
+                            ),
+                          ),
+
+                          // Status Badge (for past reminders)
+                          if (isPast && statusTag.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: statusColor.withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    statusTag == 'Completed'
+                                        ? Icons.check_circle
+                                        : Icons.warning,
+                                    size: 14,
+                                    color: statusColor,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    statusTag,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
@@ -743,297 +599,40 @@ class _ReminderListPageBody extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(
-                  isExpanded ? Icons.expand_less : Icons.expand_more,
-                  color: Colors.blue[700],
-                  size: 28, // Increased
-                ),
-              ],
-            ),
-          ),
-        ),
 
-        // Expanded history
-        if (isExpanded) ...[
-          const SizedBox(height: 14),
-          _buildHistoryList(context, viewModel, reminder),
-        ],
-      ],
-    );
-  }
-
-  // Updated history list with larger fonts
-  Widget _buildHistoryList(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    Map<String, dynamic> reminder,
-  ) {
-    List<Map<String, dynamic>> history = viewModel.getCompletionHistory(
-      reminder,
-    );
-    List<Map<String, dynamic>> recentHistory = history.reversed
-        .take(5)
-        .toList();
-
-    return Container(
-      padding: const EdgeInsets.all(14), // Increased
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Column(
-        children: [
-          ...recentHistory.asMap().entries.map((entry) {
-            int index = entry.key;
-            Map<String, dynamic> completion = entry.value;
-            Timestamp completedAt = completion['completedAt'];
-
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index < recentHistory.length - 1 ? 10 : 0, // Increased
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle_outline,
-                    size: 20,
-                    color: Colors.green[600],
-                  ), // Increased
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      viewModel.formatCompletionDate(completedAt),
-                      style: TextStyle(
-                        fontSize: 16, // Increased from 14
-                        color: Colors.grey[800],
-                      ),
+                // Trailing Icon/Button
+                // Elderly: Complete button for upcoming incomplete reminders
+                // Caregiver: Chevron to edit (cannot complete)
+                if (viewModel.isElderly &&
+                    viewModel.filterMode == 'upcoming' &&
+                    !viewModel.isCompleted(reminder))
+                  IconButton(
+                    icon: Icon(
+                      Icons.check_circle_outline,
+                      color: Colors.green[600],
+                      size: 32,
                     ),
-                  ),
-                ],
-              ),
-            );
-          }).toList(),
-          if (history.length > 5) ...[
-            const SizedBox(height: 10),
-            Text(
-              '+ ${history.length - 5} more',
-              style: TextStyle(
-                fontSize: 15, // Increased from 13
-                color: Colors.grey[600],
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // Mark as Done (Elderly)
-  Future<void> _markAsDone(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    String reminderId,
-  ) async {
-    bool success = await viewModel.markReminderComplete(reminderId);
-
-    if (success && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.celebration, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Great job! Reminder completed! 🎉',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green[700],
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    } else if (viewModel.errorMessage != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  viewModel.errorMessage!,
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.red[700],
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    }
-  }
-
-  // Toggle reminder completion (checkbox)
-  Future<void> _toggleCompletion(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    Map<String, dynamic> reminder,
-  ) async {
-    String reminderId = reminder['reminderId'];
-    bool currentStatus = reminder['isCompleted'] == true;
-    bool isRecurring = viewModel.isRecurringReminder(reminder);
-
-    // Prevent undo for recurring reminders
-    if (currentStatus && isRecurring) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(Icons.info_outline, color: Colors.white),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Cannot undo recurring reminders. It will reset on the next cycle.',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.orange[700],
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-
-    bool success = await viewModel.toggleReminderCompletion(
-      reminderId,
-      currentStatus,
-    );
-
-    if (success && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              Icon(
-                currentStatus ? Icons.undo : Icons.check_circle,
-                color: Colors.white,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  currentStatus
-                      ? 'Marked as incomplete'
-                      : 'Great job! Reminder completed!',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: currentStatus
-              ? Colors.orange[700]
-              : Colors.green[700],
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-
-  // Confirm delete dialog (unchanged)
-  Future<void> _confirmDelete(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    String reminderId,
-    String title,
-  ) async {
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text(
-          'Delete Reminder?',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Are you sure you want to delete "$title"? This action cannot be undone.',
-          style: const TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Delete',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.red[700],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      bool success = await viewModel.deleteReminder(reminderId);
-
-      if (success && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.delete, color: Colors.white),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Reminder deleted',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+                    onPressed: () async {
+                      bool success = await viewModel.markReminderComplete(
+                        reminder['reminderId'],
+                      );
+                      if (success && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Reminder marked as complete!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                  )
+                else
+                  Icon(Icons.chevron_right, color: Colors.grey[400], size: 32),
               ],
             ),
-            backgroundColor: Colors.red[700],
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
           ),
-        );
-      }
-    }
-  }
-
-  // Navigate to create reminder page (unchanged)
-  void _navigateToCreateReminder(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-  ) {
-    context.push('/caregiver/groups/${viewModel.groupId}/reminders/create');
-  }
-
-  // Navigate to edit reminder page (unchanged)
-  void _navigateToEditReminder(
-    BuildContext context,
-    ReminderListViewModel viewModel,
-    String reminderId,
-  ) {
-    context.push(
-      '/caregiver/groups/${viewModel.groupId}/reminders/$reminderId/edit',
+        ),
+      ),
     );
   }
 }

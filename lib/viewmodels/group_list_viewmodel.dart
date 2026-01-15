@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/group_service.dart';
@@ -11,6 +12,12 @@ class GroupListViewModel extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
 
+  // Stream subscription
+  StreamSubscription<List<Map<String, dynamic>>>? _groupsSubscription;
+
+  // Disposal tracking
+  bool _isDisposed = false;
+
   // Getters
   List<Map<String, dynamic>> get groups => _groups;
   bool get isLoading => _isLoading;
@@ -18,56 +25,87 @@ class GroupListViewModel extends ChangeNotifier {
   bool get hasGroups => _groups.isNotEmpty;
   String get userId => _userId;
 
+  GroupListViewModel() {
+    initializeGroupsStream();
+  }
+
   /// Initialize and listen to groups stream
   void initializeGroupsStream() {
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+
+    // Only notify if not disposed
+    if (!_isDisposed) {
+      notifyListeners();
+    }
+
+    // Cancel previous subscription if exists
+    _groupsSubscription?.cancel();
 
     // Listen to real-time updates from Firestore
-    _groupService
+    _groupsSubscription = _groupService
         .getUserGroupsStream(_userId)
         .listen(
           (groupsList) {
-            _groups = groupsList;
-            _isLoading = false;
-            _errorMessage = null;
-            notifyListeners();
+            // Only update if not disposed
+            if (!_isDisposed) {
+              _groups = groupsList;
+              _isLoading = false;
+              _errorMessage = null;
+              notifyListeners();
+            }
           },
           onError: (error) {
-            _errorMessage = 'Failed to load groups: $error';
-            _isLoading = false;
-            notifyListeners();
+            // Only update if not disposed
+            if (!_isDisposed) {
+              _errorMessage = 'Failed to load groups: $error';
+              _isLoading = false;
+              notifyListeners();
+            }
           },
         );
   }
 
   /// Fetch groups (one-time fetch, alternative to stream)
   Future<void> fetchGroups() async {
+    if (_isDisposed) return;
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       _groups = await _groupService.getUserGroups(_userId);
-      _isLoading = false;
-      notifyListeners();
+
+      if (!_isDisposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
   /// Refresh groups (pull-to-refresh)
   Future<void> refreshGroups() async {
+    if (_isDisposed) return;
+
     try {
       _groups = await _groupService.getUserGroups(_userId);
-      _errorMessage = null;
-      notifyListeners();
+
+      if (!_isDisposed) {
+        _errorMessage = null;
+        notifyListeners();
+      }
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
+      if (!_isDisposed) {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        notifyListeners();
+      }
     }
   }
 
@@ -89,5 +127,12 @@ class GroupListViewModel extends ChangeNotifier {
   /// Get role color
   Color getRoleColor(Map<String, dynamic> group) {
     return isAdmin(group) ? Colors.blue : Colors.grey;
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _groupsSubscription?.cancel();
+    super.dispose();
   }
 }

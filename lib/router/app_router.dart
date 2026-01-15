@@ -29,7 +29,6 @@ import '../views/elderly/elderly_exercise_routine_page.dart';
 
 // Import caregiver pages
 import '../views/caregiver/caregiver_groups_page.dart';
-import '../views/caregiver/caregiver_reminder_list_page.dart'; // NEW
 import '../views/caregiver/caregiver_profile_page.dart';
 
 // Import ViewModels
@@ -150,12 +149,11 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
           ),
           GoRoute(
             path: '/elderly/reminders',
-            builder: (context, state) => const ElderlyRemindersPage(),
+            builder: (context, state) => const ReminderListPage(),
           ),
           GoRoute(
             path: '/elderly/exercise',
             builder: (context, state) {
-              // Now we just pass the skipAuto parameter
               final skipAuto = state.uri.queryParameters['skipAuto'] == 'true';
               return ElderlyExercisePage(skipAutoNavigate: skipAuto);
             },
@@ -178,6 +176,26 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
         },
       ),
 
+      // NEW: Elderly reminder management routes (outside bottom nav)
+      GoRoute(
+        path: '/elderly/groups/:groupId/reminders/create',
+        builder: (context, state) {
+          final groupId = state.pathParameters['groupId']!;
+          return CreateEditReminderPage(groupId: groupId);
+        },
+      ),
+      GoRoute(
+        path: '/elderly/groups/:groupId/reminders/:reminderId/edit',
+        builder: (context, state) {
+          final groupId = state.pathParameters['groupId']!;
+          final reminderId = state.pathParameters['reminderId']!;
+          return CreateEditReminderPage(
+            groupId: groupId,
+            reminderId: reminderId,
+          );
+        },
+      ),
+
       // Caregiver routes with bottom navigation
       ShellRoute(
         builder: (context, state, child) {
@@ -189,8 +207,8 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
             builder: (context, state) => const CaregiverHomePage(),
           ),
           GoRoute(
-            path: '/caregiver/reminders', // NEW ROUTE
-            builder: (context, state) => const CaregiverReminderListPage(),
+            path: '/caregiver/reminders',
+            builder: (context, state) => const ReminderListPage(),
           ),
           GoRoute(
             path: '/caregiver/groups',
@@ -220,13 +238,6 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
         builder: (context, state) {
           final groupId = state.pathParameters['groupId']!;
           return GroupDetailPage(groupId: groupId);
-        },
-      ),
-      GoRoute(
-        path: '/caregiver/groups/:groupId/reminders',
-        builder: (context, state) {
-          final groupId = state.pathParameters['groupId']!;
-          return ReminderListPage(groupId: groupId);
         },
       ),
       GoRoute(
@@ -298,8 +309,4 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
       ),
     ),
   );
-}
-
-class GroupListPage {
-  const GroupListPage();
 }

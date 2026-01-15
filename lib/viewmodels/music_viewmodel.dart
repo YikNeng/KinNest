@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../models/music_track_model.dart';
 import '../services/music_service.dart';
+import 'dart:async';
 
 class MusicViewModel extends ChangeNotifier {
   final MusicService _musicService = MusicService();
   final AudioPlayer _audioPlayer = AudioPlayer();
+
+  // Stream subscription - MUST be stored and cancelled
+  StreamSubscription<PlayerState>? _playerStateSubscription;
 
   // State
   List<MusicTrack> _tracks = [];
@@ -40,8 +44,11 @@ class MusicViewModel extends ChangeNotifier {
   /// - Listens to player state changes (playing, paused, stopped, completed)
   /// - When track completes, resets the playing state
   /// - Updates UI through notifyListeners()
+  /// - IMPORTANT: Stores subscription so it can be cancelled in dispose()
   void _setupAudioPlayer() {
-    _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+    _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((
+      PlayerState state,
+    ) {
       _playerState = state;
       _isPlaying = (state == PlayerState.playing);
 
@@ -142,7 +149,14 @@ class MusicViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
+    // CRITICAL: Cancel stream subscription BEFORE disposing audio player
+    // This prevents the stream from firing events after dispose
+    _playerStateSubscription?.cancel();
+
+    // Stop and dispose audio player
+    _audioPlayer.stop();
     _audioPlayer.dispose();
+
     super.dispose();
   }
 }
