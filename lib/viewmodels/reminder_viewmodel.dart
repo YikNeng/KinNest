@@ -3,29 +3,33 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/reminder_service.dart';
-import '../services/group_service.dart';
 
 class ReminderViewModel extends ChangeNotifier {
   final ReminderService _reminderService = ReminderService();
-  final GroupService _groupService = GroupService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
-  // Stream subscription (not currently used, but kept for potential future use)
+  // Stream subscriptions
   StreamSubscription<List<Map<String, dynamic>>>? _remindersSubscription;
+  StreamSubscription<QuerySnapshot>?
+  _historySubscription; // <--- NEW: Listens to history count
 
   // Disposal tracking
   bool _isDisposed = false;
 
   // State
-  String? _userRole; // 'caregiver' or 'elderly'
+  String? _userRole;
   List<Map<String, dynamic>> _groups = [];
   Map<String, dynamic>? _selectedGroup;
   List<Map<String, dynamic>> _allReminders = [];
   Map<String, Map<String, dynamic>> _usersCache = {};
-  String _filterMode = 'upcoming'; // 'upcoming' or 'past'
+  String _filterMode = 'upcoming';
+
   bool _isLoading = false;
   bool _isFetchingUsers = false;
   String? _errorMessage;
+
+  // Counters
+  int _pastCount = 0; // <--- NEW: Stores the actual count
 
   // Getters
   String? get userRole => _userRole;
@@ -42,383 +46,300 @@ class ReminderViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - detect role and load appropriate data
   Future<void> _initialize() async {
     if (_isDisposed) return;
-
     await _detectUserRole();
     await loadGroups();
   }
 
-  /// Detect user role from Firestore
   Future<void> _detectUserRole() async {
-    if (_isDisposed) return;
-
     try {
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(_currentUserId)
           .get();
-
       if (userDoc.exists && !_isDisposed) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
-        _userRole = userData['role'] as String?;
+        _userRole = (userDoc.data() as Map<String, dynamic>)['role'];
       }
     } catch (e) {
-      debugPrint('Error detecting user role: $e');
+      debugPrint('Error: $e');
     }
   }
 
-  /// Load groups based on user role
   Future<void> loadGroups() async {
     if (_isDisposed) return;
-
     _isLoading = true;
     _errorMessage = null;
-
-    if (!_isDisposed) {
-      notifyListeners();
-    }
+    notifyListeners();
 
     try {
       if (isCaregiver) {
-        // Caregiver: Load groups where user is admin
         await _loadCaregiverGroups();
       } else if (isElderly) {
-        // Elderly: Load groups where user is a member
         await _loadElderlyGroups();
       }
 
-      if (!_isDisposed) {
-        if (_groups.isNotEmpty) {
-          // Auto-select first group
-          _selectedGroup = _groups.first;
-          await loadRemindersForSelectedGroup();
-        } else {
-          _isLoading = false;
-          notifyListeners();
-        }
+      if (!_isDisposed && _groups.isNotEmpty) {
+        _selectedGroup = _groups.first;
+        _subscribeToReminders();
+        _subscribeToHistory(); // <--- NEW: Start counting history
+      } else {
+        _isLoading = false;
+        notifyListeners();
       }
     } catch (e) {
       if (!_isDisposed) {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = e.toString();
         _isLoading = false;
         notifyListeners();
       }
     }
   }
 
-  /// Load groups for caregiver (where they are admin)
   Future<void> _loadCaregiverGroups() async {
-    if (_isDisposed) return;
-
-    QuerySnapshot groupSnapshot = await FirebaseFirestore.instance
+    var snap = await FirebaseFirestore.instance
         .collection('groups')
         .where('adminId', isEqualTo: _currentUserId)
         .get();
-
     if (!_isDisposed) {
-      _groups = groupSnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['groupId'] = doc.id;
+      _groups = snap.docs.map((d) {
+        var data = d.data();
+        data['groupId'] = d.id;
         return data;
       }).toList();
     }
   }
 
-  /// Load groups for elderly (where they are a member)
   Future<void> _loadElderlyGroups() async {
-    if (_isDisposed) return;
-
-    QuerySnapshot groupSnapshot = await FirebaseFirestore.instance
+    var snap = await FirebaseFirestore.instance
         .collection('groups')
         .where('memberIds', arrayContains: _currentUserId)
         .get();
-
     if (!_isDisposed) {
-      _groups = groupSnapshot.docs.map((doc) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['groupId'] = doc.id;
+      _groups = snap.docs.map((d) {
+        var data = d.data();
+        data['groupId'] = d.id;
         return data;
       }).toList();
     }
   }
 
-  /// Change selected group
-  Future<void> selectGroup(Map<String, dynamic> group) async {
-    if (_isDisposed) return;
-
-    if (_selectedGroup?['groupId'] == group['groupId']) {
-      return; // Already selected
-    }
-
+  void selectGroup(Map<String, dynamic> group) {
+    if (_isDisposed || _selectedGroup?['groupId'] == group['groupId']) return;
     _selectedGroup = group;
     _allReminders = [];
-    _usersCache = {};
-
-    if (!_isDisposed) {
-      notifyListeners();
-    }
-
-    await loadRemindersForSelectedGroup();
+    notifyListeners();
+    _subscribeToReminders();
+    _subscribeToHistory(); // <--- NEW: Switch history listener when group changes
   }
 
-  /// Load reminders for currently selected group
-  Future<void> loadRemindersForSelectedGroup() async {
-    if (_isDisposed || _selectedGroup == null) return;
-
+  void _subscribeToReminders() {
+    if (_selectedGroup == null) return;
+    _remindersSubscription?.cancel();
     _isLoading = true;
-    _errorMessage = null;
+    notifyListeners();
 
-    if (!_isDisposed) {
-      notifyListeners();
-    }
+    _remindersSubscription = _reminderService
+        .getGroupRemindersStream(_selectedGroup!['groupId'])
+        .listen(
+          (data) {
+            if (_isDisposed) return;
+            _allReminders = data;
+            _reminderService.processMissedReminders(_allReminders);
 
-    try {
-      String groupId = _selectedGroup!['groupId'];
-
-      // Fetch ALL reminders for the selected group
-      _allReminders = await _reminderService.getGroupReminders(groupId);
-
-      // Pre-fetch user data
-      await _fetchAssignedUsers();
-
-      if (!_isDisposed) {
-        _isLoading = false;
-        notifyListeners();
-      }
-    } catch (e) {
-      if (!_isDisposed) {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
-        _isLoading = false;
-        notifyListeners();
-      }
-    }
+            _isLoading = false;
+            _fetchAssignedUsers();
+            notifyListeners();
+          },
+          onError: (e) {
+            if (!_isDisposed) {
+              _isLoading = false;
+              notifyListeners();
+            }
+          },
+        );
   }
 
-  /// Get filtered reminders based on filter mode and user role
+  // --- NEW: History Counting Logic ---
+  void _subscribeToHistory() {
+    _historySubscription?.cancel();
+
+    // Listens to the count of history docs (completed or overdue)
+    // NOTE: This counts ALL history in the collection.
+    // If you add groupId to reminder_history later, add .where('groupId', ...) here.
+    _historySubscription = FirebaseFirestore.instance
+        .collection('reminder_history')
+        .where('status', whereIn: ['completed', 'overdue'])
+        .snapshots()
+        .listen((snapshot) {
+          if (_isDisposed) return;
+          _pastCount = snapshot.docs.length; // Update the counter
+          notifyListeners(); // Refresh UI to show new badge number
+        });
+  }
+
   List<Map<String, dynamic>> _getFilteredReminders() {
     DateTime now = DateTime.now();
     List<Map<String, dynamic>> filtered;
 
     if (_filterMode == 'upcoming') {
-      // Show reminders with scheduledTime >= now
       filtered =
-          _allReminders.where((reminder) {
-            Timestamp scheduledTime = reminder['scheduledTime'];
-            return scheduledTime.toDate().isAfter(now) ||
-                scheduledTime.toDate().isAtSameMomentAs(now);
-          }).toList()..sort((a, b) {
-            Timestamp timeA = a['scheduledTime'];
-            Timestamp timeB = b['scheduledTime'];
-            return timeA.compareTo(timeB);
-          });
+          _allReminders.where((r) {
+            // 1. FIRST: Check if it is already completed
+            if (r['isCompleted'] == true) {
+              return false; // Hide completed tasks immediately
+            }
+
+            // 2. Then check the time (or show all incomplete if you prefer)
+            Timestamp ts = r['scheduledTime'];
+            return ts.toDate().isAfter(now) ||
+                ts.toDate().isAtSameMomentAs(now);
+          }).toList()..sort(
+            (a, b) =>
+                (a['scheduledTime'] as Timestamp).compareTo(b['scheduledTime']),
+          );
     } else {
-      // 'past' - Show reminders with scheduledTime < now
+      // Past view logic...
       filtered =
-          _allReminders.where((reminder) {
-            Timestamp scheduledTime = reminder['scheduledTime'];
-            return scheduledTime.toDate().isBefore(now);
-          }).toList()..sort((a, b) {
-            Timestamp timeA = a['scheduledTime'];
-            Timestamp timeB = b['scheduledTime'];
-            return timeB.compareTo(timeA); // Most recent first for past
-          });
+          _allReminders.where((r) {
+            Timestamp ts = r['scheduledTime'];
+            return ts.toDate().isBefore(now);
+          }).toList()..sort(
+            (a, b) =>
+                (b['scheduledTime'] as Timestamp).compareTo(a['scheduledTime']),
+          );
     }
 
-    // FOR ELDERLY: Filter to only show reminders assigned to them
     if (isElderly) {
       filtered = filtered
-          .where((reminder) => reminder['assignedTo'] == _currentUserId)
+          .where((r) => r['assignedTo'] == _currentUserId)
           .toList();
     }
-
     return filtered;
   }
 
-  /// Set filter mode
   void setFilterMode(String mode) {
-    if (_isDisposed) return;
-
     _filterMode = mode;
     notifyListeners();
   }
 
-  /// Get upcoming count (role-aware)
+  // Counters
   int get upcomingCount {
     DateTime now = DateTime.now();
-    var upcoming = _allReminders.where((reminder) {
-      Timestamp scheduledTime = reminder['scheduledTime'];
-      return scheduledTime.toDate().isAfter(now) ||
-          scheduledTime.toDate().isAtSameMomentAs(now);
+    var list = _allReminders.where((r) {
+      Timestamp ts = r['scheduledTime'];
+      return ts.toDate().isAfter(now) || ts.toDate().isAtSameMomentAs(now);
     });
-
-    // For elderly, only count their reminders
-    if (isElderly) {
-      upcoming = upcoming.where((r) => r['assignedTo'] == _currentUserId);
-    }
-
-    return upcoming.length;
+    if (isElderly) list = list.where((r) => r['assignedTo'] == _currentUserId);
+    return list.length;
   }
 
-  /// Get past count (role-aware)
   int get pastCount {
+    // 1. Calculate Active Overdue Count
     DateTime now = DateTime.now();
-    var past = _allReminders.where((reminder) {
-      Timestamp scheduledTime = reminder['scheduledTime'];
-      return scheduledTime.toDate().isBefore(now);
-    });
+    int activeOverdueCount = _allReminders.where((r) {
+      Timestamp ts = r['scheduledTime'];
+      bool isOverdue = ts.toDate().isBefore(now);
 
-    // For elderly, only count their reminders
-    if (isElderly) {
-      past = past.where((r) => r['assignedTo'] == _currentUserId);
-    }
+      // Ensure we respect the user role filter
+      bool isUserBound = isElderly ? r['assignedTo'] == _currentUserId : true;
 
-    return past.length;
+      return isOverdue && isUserBound;
+    }).length;
+
+    // 2. Return combined count (Firestore History + Active Overdue)
+    return _pastCount + activeOverdueCount;
   }
 
-  /// Fetch user details for all assigned users in reminders
-  Future<void> _fetchAssignedUsers() async {
-    if (_isDisposed || _isFetchingUsers) return;
-
-    _isFetchingUsers = true;
-
-    try {
-      Set<String> userIds = {};
-      for (var reminder in _allReminders) {
-        String? assignedTo = reminder['assignedTo'];
-        if (assignedTo != null && !_usersCache.containsKey(assignedTo)) {
-          userIds.add(assignedTo);
-        }
-      }
-
-      if (userIds.isEmpty) {
-        _isFetchingUsers = false;
-        return;
-      }
-
-      Map<String, Map<String, dynamic>> users = await _reminderService
-          .getUsersBatch(userIds.toList());
-
-      if (!_isDisposed) {
-        _usersCache.addAll(users);
-        _isFetchingUsers = false;
-        notifyListeners();
-      } else {
-        _isFetchingUsers = false;
-      }
-    } catch (e) {
-      _isFetchingUsers = false;
-    }
-  }
-
-  /// Get elderly user name from cache
-  String getElderlyName(String elderlyId) {
-    Map<String, dynamic>? user = _usersCache[elderlyId];
-    return _reminderService.formatUserDisplayName(user);
-  }
-
-  /// Get elderly user initials
-  String getElderlyInitials(String elderlyId) {
-    Map<String, dynamic>? user = _usersCache[elderlyId];
-    return _reminderService.getUserInitials(user);
-  }
-
-  /// Get icon for reminder type
-  IconData getReminderIcon(String reminderType) {
-    String icon = _reminderService.getReminderTypeIcon(reminderType);
-    switch (icon) {
-      case '💊':
-        return Icons.medication;
-      case '📅':
-        return Icons.calendar_today;
-      case '🔔':
-      default:
-        return Icons.notifications;
-    }
-  }
-
-  /// Get color for reminder type
-  Color getReminderColor(String reminderType) {
-    String colorName = _reminderService.getReminderTypeColorName(reminderType);
-    switch (colorName) {
-      case 'red':
-        return Colors.red;
-      case 'blue':
-        return Colors.blue;
-      case 'green':
-        return Colors.green;
-      case 'orange':
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  /// Format scheduled time for display
-  String formatScheduledTime(Timestamp scheduledTime) {
-    return _reminderService.formatReminderTime(scheduledTime);
-  }
-
-  /// Check if reminder is overdue
-  bool isOverdue(Map<String, dynamic> reminder) {
-    return _reminderService.isOverdue(reminder);
-  }
-
-  /// Check if reminder is completed
-  bool isCompleted(Map<String, dynamic> reminder) {
-    return reminder['isCompleted'] == true;
-  }
-
-  /// Get status tag for past reminders
-  String getStatusTag(Map<String, dynamic> reminder) {
-    if (isCompleted(reminder)) {
-      return 'Completed';
-    } else if (isOverdue(reminder)) {
-      return 'Overdue';
-    }
-    return '';
-  }
-
-  /// Get status color for past reminders
-  Color getStatusColor(Map<String, dynamic> reminder) {
-    if (isCompleted(reminder)) {
-      return Colors.green;
-    } else if (isOverdue(reminder)) {
-      return Colors.red;
-    }
-    return Colors.grey;
-  }
-
-  /// Mark reminder as complete (elderly only)
   Future<bool> markReminderComplete(String reminderId) async {
     if (_isDisposed || !isElderly) return false;
-
     try {
-      await _reminderService.markReminderCompleteWithHistory(
-        reminderId,
-        _currentUserId,
+      final reminder = _allReminders.firstWhere(
+        (r) => r['reminderId'] == reminderId,
+        orElse: () => {},
       );
+
+      if (reminder.isEmpty) return false;
+
+      String title = reminder['title'] ?? 'Untitled';
+      DateTime currentDueDate = (reminder['scheduledTime'] as Timestamp)
+          .toDate();
+      String repeatInterval = reminder['repeatType'] ?? 'daily';
+
+      List<dynamic>? rawDays = reminder['repeatDays'];
+      List<int>? repeatDays = rawDays != null ? List<int>.from(rawDays) : null;
+
+      await _reminderService.completeRecurringTask(
+        reminderId: reminderId,
+        title: title,
+        currentDueDate: currentDueDate,
+        repeatInterval: repeatInterval,
+        repeatDays: repeatDays,
+      );
+
       return true;
     } catch (e) {
       if (!_isDisposed) {
-        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _errorMessage = e.toString();
         notifyListeners();
       }
       return false;
     }
   }
 
-  /// Refresh reminders
-  Future<void> refresh() async {
-    if (_isDisposed) return;
-    await loadRemindersForSelectedGroup();
+  // Helpers
+  Future<void> _fetchAssignedUsers() async {
+    if (_isDisposed || _isFetchingUsers) return;
+    _isFetchingUsers = true;
+    try {
+      Set<String> ids = _allReminders
+          .map((r) => r['assignedTo'] as String)
+          .toSet();
+      if (ids.isEmpty) {
+        _isFetchingUsers = false;
+        return;
+      }
+      var users = await _reminderService.getUsersBatch(ids.toList());
+      if (!_isDisposed) {
+        _usersCache.addAll(users);
+        _isFetchingUsers = false;
+        notifyListeners();
+      }
+    } catch (_) {
+      _isFetchingUsers = false;
+    }
   }
 
-  /// Clear error message
-  void clearError() {
-    if (_isDisposed) return;
+  String getElderlyName(String id) =>
+      _reminderService.formatUserDisplayName(_usersCache[id]);
 
+  IconData getReminderIcon(String type) =>
+      _reminderService.getReminderTypeIcon(type) == '💊'
+      ? Icons.medication_liquid
+      : (_reminderService.getReminderTypeIcon(type) == '📅'
+            ? Icons.calendar_month
+            : Icons.notifications_active);
+
+  Color getReminderColor(String type) =>
+      _reminderService.getReminderTypeColorName(type) == 'red'
+      ? Colors.red
+      : (_reminderService.getReminderTypeColorName(type) == 'blue'
+            ? Colors.blue
+            : (_reminderService.getReminderTypeColorName(type) == 'green'
+                  ? Colors.green
+                  : Colors.orange));
+
+  String formatScheduledTime(Timestamp ts) =>
+      _reminderService.formatReminderTime(ts);
+
+  bool isCompleted(Map<String, dynamic> r) => r['isCompleted'] == true;
+
+  Future<void> refresh() async {
+    _subscribeToReminders();
+    _subscribeToHistory();
+  }
+
+  void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
@@ -427,6 +348,7 @@ class ReminderViewModel extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _remindersSubscription?.cancel();
+    _historySubscription?.cancel(); // <--- Important: Cleanup history listener
     super.dispose();
   }
 }

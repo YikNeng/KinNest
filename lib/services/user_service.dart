@@ -151,4 +151,18 @@ class UserService {
       throw Exception('Failed to update email in database: $e');
     }
   }
+
+  // Add inside UserService class
+  Future<void> saveUserToken(String userId, String? token) async {
+    if (token == null) return;
+
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'fcmToken': token,
+        'lastTokenUpdate': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error saving token: $e');
+    }
+  }
 }

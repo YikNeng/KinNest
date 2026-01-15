@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'notification_service.dart';
 
 class ReminderService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final NotificationService _notificationService = NotificationService();
 
   /// Get all reminders for a group (stream for real-time updates)
   Stream<List<Map<String, dynamic>>> getGroupRemindersStream(String groupId) {
@@ -64,8 +67,6 @@ class ReminderService {
     }
   }
 
-  // Add to existing ReminderService class
-
   /// Mark reminder as completed with history tracking
   Future<void> markReminderCompleteWithHistory(
     String reminderId,
@@ -95,11 +96,11 @@ class ReminderService {
 
       completionHistory.add(newCompletion);
 
-      // Check if this is a recurring reminder
+      // Check repeat type
       String repeatType = reminderData['repeatType'] ?? 'once';
       bool isRecurring = repeatType != 'once';
 
-      // Update reminder
+      // Update reminder base data
       Map<String, dynamic> updateData = {
         'isCompleted': true,
         'completedAt': Timestamp.now(),
@@ -110,15 +111,25 @@ class ReminderService {
 
       // If recurring, schedule next occurrence
       if (isRecurring) {
-        Timestamp currentScheduledTime = reminderData['scheduledTime'];
+        Timestamp currentScheduledTimestamp = reminderData['scheduledTime'];
+        DateTime currentScheduledTime = currentScheduledTimestamp.toDate();
+
+        // Get repeatDays if available (for specific_days type)
+        List<int> repeatDays = [];
+        if (reminderData['repeatDays'] != null) {
+          repeatDays = List<int>.from(reminderData['repeatDays']);
+        }
+
         DateTime nextScheduledTime = _calculateNextOccurrence(
-          currentScheduledTime.toDate(),
+          currentScheduledTime,
           repeatType,
+          repeatDays, // Pass the specific days
         );
 
         updateData['scheduledTime'] = Timestamp.fromDate(nextScheduledTime);
         updateData['isCompleted'] = false; // Reset for next occurrence
-        updateData['completedAt'] = Timestamp.now(); // Keep last completion
+        updateData['completedAt'] =
+            Timestamp.now(); // Keep last completion timestamp reference
       }
 
       await _firestore
@@ -131,14 +142,45 @@ class ReminderService {
   }
 
   /// Calculate next occurrence for recurring reminders
-  DateTime _calculateNextOccurrence(DateTime currentTime, String repeatType) {
-    switch (repeatType) {
+  DateTime _calculateNextOccurrence(
+    DateTime currentTime,
+    String repeatType, [
+    List<int>? repeatDays,
+  ]) {
+    if (repeatType == 'specific_days' &&
+        repeatDays != null &&
+        repeatDays.isNotEmpty) {
+      // Find the next matching day of the week
+      // 1 = Mon, 7 = Sun
+
+      // Sort days to be safe
+      repeatDays.sort();
+
+      int currentWeekday = currentTime.weekday;
+
+      // Look for a day later in the current week
+      for (int day in repeatDays) {
+        if (day > currentWeekday) {
+          int daysToAdd = day - currentWeekday;
+          return currentTime.add(Duration(days: daysToAdd));
+        }
+      }
+
+      // If no day found later this week, wrap to the first available day next week
+      int firstDayNextWeek = repeatDays.first;
+      int daysUntilEndOfWeek = 7 - currentWeekday;
+      int daysToAdd = daysUntilEndOfWeek + firstDayNextWeek;
+
+      return currentTime.add(Duration(days: daysToAdd));
+    }
+
+    // Legacy/Standard repeat types
+    switch (repeatType.toLowerCase()) {
       case 'daily':
         return currentTime.add(const Duration(days: 1));
       case 'weekly':
         return currentTime.add(const Duration(days: 7));
       case 'monthly':
-        // Add one month
         int year = currentTime.year;
         int month = currentTime.month + 1;
         if (month > 12) {
@@ -163,7 +205,8 @@ class ReminderService {
       case 'every_6_days':
         return currentTime.add(const Duration(days: 6));
       default:
-        return currentTime;
+        // Fallback for 'once' or unknown
+        return currentTime.add(const Duration(days: 1));
     }
   }
 
@@ -337,6 +380,24 @@ class ReminderService {
   Future<void> deleteReminder(String reminderId) async {
     try {
       await _firestore.collection('reminders').doc(reminderId).delete();
+      DocumentSnapshot doc = await _firestore
+          .collection('reminders')
+          .doc(reminderId)
+          .get();
+      if (doc.exists) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+
+        await _firestore.collection('reminders').doc(reminderId).delete();
+
+        String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        Map<String, dynamic>? user = await getUserDetails(currentUserId);
+
+        await _notificationService.notifyGroupOfChanges(
+          data['groupId'],
+          user?['name'] ?? 'A member',
+          'deleted the reminder: ${data['title']}',
+        );
+      }
     } catch (e) {
       throw Exception('Failed to delete reminder: $e');
     }
@@ -393,32 +454,26 @@ class ReminderService {
   }
 
   /// Get reminder type icon
+  /// FIXED: Replaced corrupted characters with standard Emojis
   String getReminderTypeIcon(String? type) {
     switch (type?.toLowerCase()) {
       case 'medication':
         return '💊';
       case 'appointment':
-        return '🏥';
-      case 'exercise':
-        return '🏃';
-      case 'meal':
-        return '🍽️';
+        return '📅';
       default:
-        return '📋';
+        return '🔔';
     }
   }
 
   /// Get reminder type color
+  /// FIXED: Replaced corrupted characters
   String getReminderTypeColorName(String? type) {
     switch (type?.toLowerCase()) {
       case 'medication':
         return 'red';
       case 'appointment':
         return 'blue';
-      case 'exercise':
-        return 'green';
-      case 'meal':
-        return 'orange';
       default:
         return 'grey';
     }
@@ -431,16 +486,15 @@ class ReminderService {
     required String assignedTo,
     required String title,
     String? description,
-    required String type, // "normal", "medication", "appointment"
+    required String type,
     required DateTime scheduledDate,
-    required String scheduledTime, // "HH:mm"
-    required String repeatType, // "once", "daily", "weekly", etc.
+    required String scheduledTime,
+    required String repeatType,
+    List<int>? repeatDays, // Added parameter
     String? voiceNoteUrl,
-    Map<String, dynamic>?
-    typeSpecificData, // For medications or appointment details
+    Map<String, dynamic>? typeSpecificData,
   }) async {
     try {
-      // Combine date and time into Timestamp
       List<String> timeParts = scheduledTime.split(':');
       DateTime scheduledDateTime = DateTime(
         scheduledDate.year,
@@ -450,7 +504,6 @@ class ReminderService {
         int.parse(timeParts[1]),
       );
 
-      // Create reminder document
       Map<String, dynamic> reminderData = {
         'groupId': groupId,
         'createdBy': createdBy,
@@ -468,15 +521,48 @@ class ReminderService {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // Add type-specific data if provided
+      // Add repeatDays if specific_days
+      if (repeatType == 'specific_days' && repeatDays != null) {
+        reminderData['repeatDays'] = repeatDays;
+      }
+
       if (typeSpecificData != null) {
         reminderData['typeSpecificData'] = typeSpecificData;
       }
 
-      // Add to Firestore
+      // Inside createReminder method...
+
       DocumentReference docRef = await _firestore
           .collection('reminders')
           .add(reminderData);
+
+      // --- ADD THIS BLOCK ---
+      try {
+        // Get creator details to know who is sending it
+        Map<String, dynamic>? creator = await getUserDetails(createdBy);
+        String creatorName = creator?['name'] ?? 'A caregiver';
+        String creatorRole = creator?['role'] ?? 'unknown';
+
+        // Case A: Caregiver creates for Elderly
+        if (creatorRole == 'caregiver' && createdBy != assignedTo) {
+          await _notificationService.notifyElderlyOfNewReminder(
+            assignedTo, // The elderly ID
+            title,
+            creatorName,
+          );
+        }
+        // Case B: Elderly creates for themselves
+        else if (creatorRole == 'elderly') {
+          await _notificationService.notifyCaregiversOfAction(
+            groupId,
+            creatorName,
+            'created a new reminder: $title',
+          );
+        }
+      } catch (e) {
+        print("Notification Error: $e"); // Log error but don't stop the app
+      }
+      // --- END BLOCK ---
 
       return docRef.id;
     } catch (e) {
@@ -493,11 +579,11 @@ class ReminderService {
     required DateTime scheduledDate,
     required String scheduledTime,
     required String repeatType,
+    List<int>? repeatDays, // Added parameter
     String? voiceNoteUrl,
     Map<String, dynamic>? typeSpecificData,
   }) async {
     try {
-      // Combine date and time
       List<String> timeParts = scheduledTime.split(':');
       DateTime scheduledDateTime = DateTime(
         scheduledDate.year,
@@ -517,6 +603,14 @@ class ReminderService {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      // Handle repeatDays update
+      if (repeatType == 'specific_days' && repeatDays != null) {
+        updateData['repeatDays'] = repeatDays;
+      } else {
+        // Remove repeatDays if switching to a non-specific type
+        updateData['repeatDays'] = FieldValue.delete();
+      }
+
       if (typeSpecificData != null) {
         updateData['typeSpecificData'] = typeSpecificData;
       }
@@ -525,6 +619,22 @@ class ReminderService {
           .collection('reminders')
           .doc(reminderId)
           .update(updateData);
+      // Fetch reminder to get groupId for notification
+      DocumentSnapshot oldDoc = await _firestore
+          .collection('reminders')
+          .doc(reminderId)
+          .get();
+      if (oldDoc.exists) {
+        Map<String, dynamic> data = oldDoc.data() as Map<String, dynamic>;
+        String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        Map<String, dynamic>? user = await getUserDetails(currentUserId);
+
+        await _notificationService.notifyGroupOfChanges(
+          data['groupId'],
+          user?['name'] ?? 'A member',
+          'updated the reminder: $title',
+        );
+      }
     } catch (e) {
       throw Exception('Failed to update reminder: $e');
     }
@@ -823,7 +933,24 @@ class ReminderService {
   }
 
   /// Format repeat type display name
-  String getRepeatTypeDisplayName(String repeatType) {
+  String getRepeatTypeDisplayName(
+    String repeatType, [
+    List<dynamic>? repeatDays,
+  ]) {
+    if (repeatType == 'specific_days' && repeatDays != null) {
+      if (repeatDays.length == 7) return 'Every day';
+      if (repeatDays.length == 2 &&
+          repeatDays.contains(6) &&
+          repeatDays.contains(7)) {
+        return 'Weekends';
+      }
+
+      List<String> days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      // Sort and map to names
+      List<int> sortedDays = List<int>.from(repeatDays)..sort();
+      return sortedDays.map((d) => days[d - 1]).join(', ');
+    }
+
     switch (repeatType.toLowerCase()) {
       case 'once':
         return 'One-time';
@@ -833,18 +960,8 @@ class ReminderService {
         return 'Weekly';
       case 'monthly':
         return 'Monthly';
-      case 'every_2_days':
-        return 'Every 2 days';
-      case 'every_3_days':
-        return 'Every 3 days';
-      case 'every_4_days':
-        return 'Every 4 days';
-      case 'every_5_days':
-        return 'Every 5 days';
-      case 'every_6_days':
-        return 'Every 6 days';
       default:
-        return 'One-time';
+        return 'Custom';
     }
   }
 
@@ -951,6 +1068,159 @@ class ReminderService {
       return 'Unknown User';
     } catch (e) {
       return 'Unknown User';
+    }
+  }
+
+  /// MARKS A TASK AS COMPLETE (History Log Pattern)
+  /// 1. Creates a record in 'reminder_history' (preserving the old due date).
+  /// 2. Updates the active 'reminder' to the NEXT occurrence using robust calculation.
+  Future<void> completeRecurringTask({
+    required String reminderId,
+    required String title,
+    required DateTime currentDueDate,
+    required String repeatInterval, // mapped from 'repeatType'
+    List<int>? repeatDays,
+    String? forceStatus,
+  }) async {
+    WriteBatch batch = _firestore.batch();
+
+    DocumentReference reminderRef = _firestore
+        .collection('reminders')
+        .doc(reminderId);
+    DocumentReference historyRef = _firestore
+        .collection('reminder_history')
+        .doc();
+
+    final now = DateTime.now();
+    String status = 'completed';
+
+    // 1. Determine Status
+    if (forceStatus != null) {
+      status = forceStatus;
+    } else if (now.isAfter(currentDueDate.add(const Duration(hours: 1)))) {
+      status = 'overdue';
+    }
+
+    // 2. Add to History (We always want a history log, even for one-time tasks)
+    batch.set(historyRef, {
+      'originalReminderId': reminderId,
+      'taskTitle': title,
+      'completedAt': FieldValue.serverTimestamp(),
+      'scheduledFor': currentDueDate,
+      'status': status,
+      'notes': status == 'missed'
+          ? 'Auto-archived by system'
+          : (status == 'overdue' ? 'Completed late' : 'On time'),
+    });
+
+    // --- FIX STARTS HERE ---
+
+    // 3. Update Active Reminder based on Repeat Type
+    if (repeatInterval == 'once') {
+      // CASE A: One-time Task -> Just mark as COMPLETED
+      batch.update(reminderRef, {
+        'isCompleted': true, // This hides it from the active list
+        'lastCompleted': FieldValue.serverTimestamp(),
+        // We do NOT change scheduledTime for one-time tasks
+      });
+    } else {
+      // CASE B: Recurring Task -> RESCHEDULE for next time
+      DateTime nextDueDate = _calculateNextOccurrence(
+        currentDueDate,
+        repeatInterval,
+        repeatDays,
+      );
+
+      batch.update(reminderRef, {
+        'scheduledTime': Timestamp.fromDate(nextDueDate),
+        'lastCompleted': FieldValue.serverTimestamp(),
+        'isCompleted': false, // Keep false so it stays active for next cycle
+      });
+    }
+
+    await batch.commit();
+  }
+
+  /// AUTOMATICALLY HANDLES MISSED REMINDERS
+  /// 1. Logs them as 'missed' in history.
+  /// 2. Reschedules recurring tasks to the future.
+  /// 3. Closes one-time tasks.
+  Future<void> processMissedReminders(
+    List<Map<String, dynamic>> reminders,
+  ) async {
+    final batch = _firestore.batch();
+    bool hasUpdates = false;
+    final now = DateTime.now();
+
+    for (var reminder in reminders) {
+      // Skip if already completed
+      if (reminder['isCompleted'] == true) continue;
+
+      Timestamp scheduledTs = reminder['scheduledTime'];
+      DateTime scheduledDateTime = scheduledTs.toDate();
+
+      // Check if the time has passed
+      if (scheduledDateTime.isBefore(now)) {
+        hasUpdates = true;
+        String reminderId = reminder['reminderId'];
+        String repeatType = reminder['repeatType'] ?? 'once';
+
+        // --- A. Create History Record (Permanent "Missed" Log) ---
+        DocumentReference historyRef = _firestore
+            .collection('reminder_history')
+            .doc();
+
+        batch.set(historyRef, {
+          'originalReminderId': reminderId,
+          'groupId': reminder['groupId'],
+          'taskTitle': reminder['title'],
+          'scheduledFor': scheduledTs, // The date they missed
+          'status': 'missed', // NEW STATUS
+          'loggedAt': FieldValue.serverTimestamp(),
+          'notes': 'Auto-archived: Time passed without completion',
+        });
+
+        // --- B. Update Active Reminder (Remove from view or Reschedule) ---
+        DocumentReference reminderRef = _firestore
+            .collection('reminders')
+            .doc(reminderId);
+
+        if (repeatType == 'once') {
+          // One-time task: Mark complete (hidden) so it disappears from list
+          batch.update(reminderRef, {
+            'isCompleted': true,
+            'completionStatus': 'missed', // Internal flag
+          });
+        } else {
+          // Recurring task: Jump to the NEXT FUTURE Occurrence
+          // If user missed 3 days, this loop skips all 3 to find the next valid slot
+          List<int>? repeatDays;
+          if (reminder['repeatDays'] != null) {
+            repeatDays = List<int>.from(reminder['repeatDays']);
+          }
+
+          DateTime nextTime = scheduledDateTime;
+
+          // Keep advancing until we find a time in the future
+          while (nextTime.isBefore(now)) {
+            nextTime = _calculateNextOccurrence(
+              nextTime,
+              repeatType,
+              repeatDays,
+            );
+          }
+
+          batch.update(reminderRef, {
+            'scheduledTime': Timestamp.fromDate(nextTime),
+            'isCompleted': false, // Keep it active for the new date
+          });
+        }
+      }
+    }
+
+    // Commit all changes atomically
+    if (hasUpdates) {
+      await batch.commit();
     }
   }
 }

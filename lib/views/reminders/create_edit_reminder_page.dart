@@ -48,6 +48,15 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, size: 28),
           onPressed: () => _handleBackPress(context, viewModel),
         ),
+        actions: [
+          if (viewModel.isEditMode && !viewModel.isLoading)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, size: 28),
+              tooltip: 'Delete Reminder',
+              onPressed: () => _handleDelete(context, viewModel),
+            ),
+          const SizedBox(width: 8), // Right padding
+        ],
       ),
       body: _buildBody(context, viewModel),
     );
@@ -82,7 +91,9 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           const SizedBox(height: 16),
           _buildReminderTypeSelection(context, viewModel),
           const SizedBox(height: 32),
+
           _buildCommonFields(context, viewModel),
+
           const SizedBox(height: 32),
           if (viewModel.selectedType == 'medication') ...[
             _buildMedicationFields(context, viewModel),
@@ -90,6 +101,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           ],
           if (viewModel.selectedType == 'appointment')
             _buildAppointmentFields(context, viewModel),
+
           const SizedBox(height: 32),
           if (viewModel.errorMessage != null)
             Container(
@@ -173,8 +185,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       ),
     );
   }
-
-  // Rest of the helper methods remain the same until medication card...
 
   Widget _buildSectionTitle(String title) {
     return Text(
@@ -296,6 +306,10 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     BuildContext context,
     CreateEditReminderViewModel viewModel,
   ) {
+    bool isMedication = viewModel.selectedType == 'medication';
+    // Check if it is an appointment to hide sections
+    bool isAppointment = viewModel.selectedType == 'appointment';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -359,93 +373,180 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         const SizedBox(height: 20),
         _buildVoiceNoteSection(context, viewModel),
         const SizedBox(height: 20),
-        _buildLabel('Date', required: true),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: () => _selectDate(context, viewModel),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today, color: Colors.blue[700], size: 24),
-                const SizedBox(width: 16),
-                Text(
-                  _formatDate(viewModel.selectedDate),
-                  style: const TextStyle(fontSize: 18, color: Colors.black87),
+
+        // --- UPDATED: HIDE DATE/TIME IF APPOINTMENT ---
+        if (!isAppointment) ...[
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLabel(
+                      viewModel.selectedRepeatDays.isNotEmpty
+                          ? 'Start Date'
+                          : 'Date',
+                      required: true,
+                    ),
+                    const SizedBox(height: 8),
+                    InkWell(
+                      onTap: () => _selectDate(context, viewModel),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey[300]!),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              color: Colors.blue[700],
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              _formatDate(viewModel.selectedDate),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              const SizedBox(width: 16),
+
+              // TIME FIELD logic (Hidden for Medication-Create, and now Hidden for Appointment)
+              if (!isMedication || viewModel.isEditMode)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildLabel('Time', required: true),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: () => _selectTime(context, viewModel),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey[300]!),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.access_time,
+                                color: Colors.blue[700],
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                viewModel.selectedTime.format(context),
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                const Expanded(child: SizedBox()),
+            ],
           ),
-        ),
-        const SizedBox(height: 20),
-        _buildLabel('Time', required: true),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: () => _selectTime(context, viewModel),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[300]!),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.access_time, color: Colors.blue[700], size: 24),
-                const SizedBox(width: 16),
-                Text(
-                  viewModel.selectedTime.format(context),
-                  style: const TextStyle(fontSize: 18, color: Colors.black87),
+          const SizedBox(height: 20),
+        ],
+
+        // --- UPDATED: HIDE REPEAT SECTION IF APPOINTMENT ---
+        if (!isAppointment) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildLabel('Repeat'),
+              if (viewModel.selectedRepeatDays.isNotEmpty)
+                TextButton(
+                  onPressed: viewModel.setOneTime,
+                  child: Text(
+                    'Clear',
+                    style: TextStyle(color: Colors.red[400]),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
-        ),
-        const SizedBox(height: 20),
-        _buildLabel('Repeat', required: true),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[300]!),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _convertFirestoreToUIRepeatType(
-                viewModel.selectedRepeatType,
+          const SizedBox(height: 8),
+          _buildDaySelector(viewModel),
+          if (viewModel.selectedRepeatDays.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, left: 4.0),
+              child: Text(
+                'One-time reminder',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
               ),
-              isExpanded: true,
-              icon: Icon(
-                Icons.arrow_drop_down,
-                size: 32,
-                color: Colors.blue[700],
-              ),
-              style: const TextStyle(fontSize: 18, color: Colors.black87),
-              items: viewModel.repeatOptions.map((String option) {
-                return DropdownMenuItem<String>(
-                  value: option,
-                  child: Text(option),
-                );
-              }).toList(),
-              onChanged: (String? value) {
-                if (value != null) {
-                  viewModel.setRepeatType(value);
-                }
-              },
             ),
-          ),
-        ),
-        const SizedBox(height: 20),
+          const SizedBox(height: 20),
+        ],
+
         if (viewModel.isCaregiver) _buildAssignedToDropdown(context, viewModel),
       ],
     );
   }
 
-  // Updated Voice Note Section with direct recording and playback
+  // --- DAY SELECTOR WIDGET ---
+  Widget _buildDaySelector(CreateEditReminderViewModel viewModel) {
+    final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: List.generate(7, (index) {
+        // Weekdays in DateTime are 1 (Mon) to 7 (Sun)
+        final int dayValue = index + 1;
+        final bool isSelected = viewModel.isDaySelected(dayValue);
+
+        return GestureDetector(
+          onTap: () => viewModel.toggleDay(dayValue),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.blue[700] : Colors.grey[100],
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? Colors.blue[700]! : Colors.grey[300]!,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                days[index],
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.grey[600],
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  // --- VOICE NOTE WIDGETS ---
   Widget _buildVoiceNoteSection(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -456,18 +557,15 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         _buildLabel('Voice Note'),
         const SizedBox(height: 8),
 
-        // If voice note exists, show playback UI
         if (viewModel.existingVoiceNoteUrl != null ||
             viewModel.voiceNoteFile != null)
           _buildVoiceNotePlayback(context, viewModel)
         else
-          // If no voice note, show record button
           _buildVoiceNoteRecordButton(context, viewModel),
       ],
     );
   }
 
-  // Record button - tap to start recording directly
   Widget _buildVoiceNoteRecordButton(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -508,7 +606,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // Playback UI - shows recorded voice note with play/delete controls
   Widget _buildVoiceNotePlayback(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -523,7 +620,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Header with icon and title
           Row(
             children: [
               Container(
@@ -565,7 +661,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Play/Pause button
           SizedBox(
             height: 50,
             child: ElevatedButton.icon(
@@ -588,7 +683,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
           ),
 
-          // Progress indicator (if playing)
           if (viewModel.isPlayingVoiceNote ||
               viewModel.voiceNotePlaybackPosition > 0) ...[
             const SizedBox(height: 12),
@@ -597,7 +691,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Re-record button
           OutlinedButton.icon(
             onPressed: () => _rerecordVoiceNote(context, viewModel),
             icon: Icon(Icons.mic, size: 20),
@@ -619,7 +712,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // Playback progress bar
   Widget _buildPlaybackProgress(CreateEditReminderViewModel viewModel) {
     double progress = viewModel.voiceNoteDuration > 0
         ? viewModel.voiceNotePlaybackPosition / viewModel.voiceNoteDuration
@@ -649,149 +741,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  // Format duration helper
-  String _formatDuration(double seconds) {
-    int minutes = seconds.toInt() ~/ 60;
-    int remainingSeconds = seconds.toInt() % 60;
-    return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
-  }
-
-  // Start recording directly
-  Future<void> _startRecording(
-    BuildContext context,
-    CreateEditReminderViewModel viewModel,
-  ) async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => _VoiceRecordingDialog(
-        onSave: (File file) {
-          viewModel.setVoiceNoteFile(file);
-        },
-      ),
-    );
-  }
-
-  // Toggle playback
-  Future<void> _togglePlayback(
-    BuildContext context,
-    CreateEditReminderViewModel viewModel,
-  ) async {
-    if (viewModel.isPlayingVoiceNote) {
-      await viewModel.pauseVoiceNote();
-    } else {
-      bool success = await viewModel.playVoiceNote();
-      if (!success && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'Failed to play voice note',
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red[700],
-          ),
-        );
-      }
-    }
-  }
-
-  // Re-record voice note
-  Future<void> _rerecordVoiceNote(
-    BuildContext context,
-    CreateEditReminderViewModel viewModel,
-  ) async {
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Re-record Voice Note?',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'This will replace your current voice note. Continue?',
-          style: TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Re-record',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue[700],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      viewModel.stopVoiceNote(); // Stop if playing
-      _startRecording(context, viewModel);
-    }
-  }
-
-  // Confirm delete voice note
-  Future<void> _confirmDeleteVoiceNote(
-    BuildContext context,
-    CreateEditReminderViewModel viewModel,
-  ) async {
-    bool? confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(
-          'Delete Voice Note?',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'Are you sure you want to delete this voice note?',
-          style: TextStyle(fontSize: 16),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(
-              'Cancel',
-              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(
-              'Delete',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: Colors.red[700],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      viewModel.removeVoiceNote();
-    }
   }
 
   Widget _buildAssignedToDropdown(
@@ -836,7 +785,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
-              value: viewModel.assignedToUserId, // Fixed: use public getter
+              value: viewModel.assignedToUserId,
               isExpanded: true,
               icon: Icon(
                 Icons.arrow_drop_down,
@@ -863,6 +812,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
+  // --- REPLACED _buildMedicationFields ---
   Widget _buildMedicationFields(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -874,7 +824,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildSectionTitle('Medication'),
-            // Only show Add button if no medication exists
             if (viewModel.medications.isEmpty)
               ElevatedButton.icon(
                 onPressed: viewModel.addMedication,
@@ -896,7 +845,131 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // Always show medication card if exists, or empty state
+        // --- DOSAGE FREQUENCY (Only in Create Mode) ---
+        if (!viewModel.isEditMode) ...[
+          _buildLabel('Dosage Times (per day)', required: true),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue[50],
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue[100]!),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                InkWell(
+                  onTap: viewModel.decrementDose,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Icon(Icons.remove, color: Colors.blue[700]),
+                  ),
+                ),
+
+                Text(
+                  '${viewModel.doseCount} time${viewModel.doseCount > 1 ? 's' : ''}',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[900],
+                  ),
+                ),
+
+                InkWell(
+                  onTap: viewModel.incrementDose,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Icon(Icons.add, color: Colors.blue[700]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          _buildLabel('Schedule Times'),
+          const SizedBox(height: 8),
+          ...List.generate(viewModel.doseTimes.length, (index) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                onTap: () async {
+                  TimeOfDay? picked = await showTimePicker(
+                    context: context,
+                    initialTime: viewModel.doseTimes[index],
+                  );
+                  if (picked != null) {
+                    viewModel.setDoseTime(index, picked);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey[300]!),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '#${index + 1}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[700],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Text(
+                        viewModel.doseTimes[index].format(context),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const Spacer(),
+                      Icon(Icons.edit_outlined, color: Colors.grey[400]),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 24),
+        ],
+
         if (viewModel.medications.isEmpty)
           Container(
             padding: const EdgeInsets.all(24),
@@ -932,7 +1005,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
           )
         else
-          // Show the single medication card (always index 0)
           _buildMedicationCard(context, viewModel, 0),
       ],
     );
@@ -966,11 +1038,12 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
 
             const SizedBox(height: 8),
+            // --- FIXED: ADDED onChanged ---
             TextField(
-              controller: viewModel.getMedicationController(
-                index,
-                'name',
-              ), // Fixed: use controller
+              controller: viewModel.getMedicationController(index, 'name'),
+              // This line is crucial: updates the data model as you type
+              onChanged: (value) =>
+                  viewModel.updateMedication(index, 'name', value),
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
                 hintText: 'e.g., Aspirin',
@@ -993,14 +1066,17 @@ class _CreateEditReminderPageBody extends StatelessWidget {
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
             _buildLabel('Dosage', required: true),
             const SizedBox(height: 8),
+
+            // --- FIXED: ADDED onChanged ---
             TextField(
-              controller: viewModel.getMedicationController(
-                index,
-                'dosage',
-              ), // Fixed: use controller
+              controller: viewModel.getMedicationController(index, 'dosage'),
+              // This line is crucial: updates the data model as you type
+              onChanged: (value) =>
+                  viewModel.updateMedication(index, 'dosage', value),
               style: const TextStyle(fontSize: 18),
               decoration: InputDecoration(
                 hintText: 'e.g., 100mg',
@@ -1023,39 +1099,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            _buildLabel('Frequency', required: true),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[300]!),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: medication['frequency'],
-                  isExpanded: true,
-                  icon: Icon(
-                    Icons.arrow_drop_down,
-                    size: 28,
-                    color: Colors.blue[700],
-                  ),
-                  style: const TextStyle(fontSize: 18, color: Colors.black87),
-                  items: viewModel.frequencyOptions.map((String option) {
-                    return DropdownMenuItem<String>(
-                      value: option,
-                      child: Text(option),
-                    );
-                  }).toList(),
-                  onChanged: (String? value) {
-                    if (value != null) {
-                      viewModel.updateMedication(index, 'frequency', value);
-                    }
-                  },
-                ),
-              ),
-            ),
+
             const SizedBox(height: 16),
             _buildLabel('Meal Timing', required: true),
             const SizedBox(height: 8),
@@ -1095,6 +1139,8 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
+  // ... inside _CreateEditReminderPageBody ...
+
   Widget _buildAppointmentFields(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -1104,10 +1150,12 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       children: [
         _buildSectionTitle('Appointment Details'),
         const SizedBox(height: 16),
+
+        // Scan Button
         ElevatedButton.icon(
           onPressed: viewModel.isProcessingOCR
               ? null
-              : () => _scanMedicalCard(context, viewModel),
+              : () => _showImageSourceDialog(context, viewModel),
           icon: viewModel.isProcessingOCR
               ? const SizedBox(
                   width: 20,
@@ -1133,7 +1181,10 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(height: 20),
+
+        // Info & Warning Container
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
@@ -1141,21 +1192,54 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: Colors.blue[200]!),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
             children: [
-              Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Scan your medical appointment card to auto-fill date and time. You can edit manually after scanning.',
-                  style: TextStyle(fontSize: 14, color: Colors.blue[900]),
-                ),
+              // Original Info
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Scan your medical appointment card to auto-fill hospital name, date, and time.',
+                      style: TextStyle(fontSize: 14, color: Colors.blue[900]),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // NEW: Warning Text
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.orange[800],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Please check the date and time again as the scan results may not be 100% accurate.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.orange[900],
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
+
         const SizedBox(height: 20),
+
+        // Appointment Date Field
         _buildLabel('Appointment Date'),
         const SizedBox(height: 8),
         InkWell(
@@ -1203,7 +1287,10 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(height: 20),
+
+        // Appointment Time Field
         _buildLabel('Appointment Time'),
         const SizedBox(height: 8),
         InkWell(
@@ -1255,7 +1342,84 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // Helper Methods
+  // --- NEW: Helper to show selection dialog ---
+  void _showImageSourceDialog(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _scanMedicalCard(context, viewModel, ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _scanMedicalCard(context, viewModel, ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // --- UPDATED: Accepts ImageSource ---
+  Future<void> _scanMedicalCard(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+    ImageSource source,
+  ) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: source, // Use the selected source
+      imageQuality: 80,
+    );
+
+    if (image != null && context.mounted) {
+      File imageFile = File(image.path);
+      bool success = await viewModel.processOCRFromImage(imageFile);
+
+      if (success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Details extracted! Please verify.',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green[700],
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // --- HELPER METHODS ---
 
   String _formatDate(DateTime date) {
     List<String> months = [
@@ -1281,29 +1445,10 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     return mb.toStringAsFixed(2);
   }
 
-  String _convertFirestoreToUIRepeatType(String firestoreType) {
-    switch (firestoreType) {
-      case 'once':
-        return 'One-time';
-      case 'daily':
-        return 'Daily';
-      case 'weekly':
-        return 'Weekly';
-      case 'monthly':
-        return 'Monthly';
-      case 'every_2_days':
-        return 'Every 2 days';
-      case 'every_3_days':
-        return 'Every 3 days';
-      case 'every_4_days':
-        return 'Every 4 days';
-      case 'every_5_days':
-        return 'Every 5 days';
-      case 'every_6_days':
-        return 'Every 6 days';
-      default:
-        return 'One-time';
-    }
+  String _formatDuration(double seconds) {
+    int minutes = seconds.toInt() ~/ 60;
+    int remainingSeconds = seconds.toInt() % 60;
+    return '${minutes.toString().padLeft(1, '0')}:${remainingSeconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> _selectDate(
@@ -1345,7 +1490,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) {
-      viewModel.setAppointmentDate(picked); // Fixed: use public setter
+      viewModel.setAppointmentDate(picked);
     }
   }
 
@@ -1358,45 +1503,139 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       initialTime: viewModel.appointmentTime ?? TimeOfDay.now(),
     );
     if (picked != null) {
-      viewModel.setAppointmentTime(picked); // Fixed: use public setter
+      viewModel.setAppointmentTime(picked);
     }
   }
 
-  Future<void> _scanMedicalCard(
+  Future<void> _startRecording(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
   ) async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
-      source: ImageSource.camera,
-      imageQuality: 80,
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _VoiceRecordingDialog(
+        onSave: (File file) {
+          viewModel.setVoiceNoteFile(file);
+        },
+      ),
     );
+  }
 
-    if (image != null && context.mounted) {
-      File imageFile = File(image.path);
-      bool success = await viewModel.processOCRFromImage(imageFile);
-
-      if (success && context.mounted) {
+  Future<void> _togglePlayback(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+  ) async {
+    if (viewModel.isPlayingVoiceNote) {
+      await viewModel.pauseVoiceNote();
+    } else {
+      bool success = await viewModel.playVoiceNote();
+      if (!success && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 12),
+                Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Appointment details extracted! Please verify the information.',
+                    'Failed to play voice note',
                     style: TextStyle(fontSize: 16),
                   ),
                 ),
               ],
             ),
-            backgroundColor: Colors.green[700],
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red[700],
           ),
         );
       }
+    }
+  }
+
+  Future<void> _rerecordVoiceNote(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+  ) async {
+    bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Re-record Voice Note?',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'This will replace your current voice note. Continue?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Re-record',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      viewModel.stopVoiceNote();
+      _startRecording(context, viewModel);
+    }
+  }
+
+  Future<void> _confirmDeleteVoiceNote(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+  ) async {
+    bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Delete Voice Note?',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to delete this voice note?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.red[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      viewModel.removeVoiceNote();
     }
   }
 
@@ -1433,6 +1672,65 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       await Future.delayed(const Duration(milliseconds: 500));
       if (context.mounted) {
         context.pop();
+      }
+    }
+  }
+
+  Future<void> _handleDelete(
+    BuildContext context,
+    CreateEditReminderViewModel viewModel,
+  ) async {
+    // 1. Show Confirmation Dialog
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Reminder?'),
+        content: const Text(
+          'Are you sure you want to delete this reminder? This action cannot be undone.',
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[700], fontSize: 16),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // 2. Perform Delete if confirmed
+    if (shouldDelete == true && context.mounted) {
+      bool success = await viewModel.deleteReminder();
+
+      if (success && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.delete, color: Colors.white),
+                SizedBox(width: 12),
+                Text('Reminder deleted successfully'),
+              ],
+            ),
+            backgroundColor: Colors.red[700],
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        context.pop(); // Go back to previous screen
       }
     }
   }
@@ -1489,7 +1787,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
   }
 }
 
-// Voice Recording Dialog
+// Keep the VoiceRecordingDialog as it was originally
 class _VoiceRecordingDialog extends StatefulWidget {
   final Function(File) onSave;
 
@@ -1515,7 +1813,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
 
   Future<void> _checkPermissionAndStart() async {
     try {
-      // Check if we have permission
       bool hasPermission = await _recorder.hasPermission();
 
       if (!hasPermission) {
@@ -1541,7 +1838,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
                 label: 'Settings',
                 textColor: Colors.white,
                 onPressed: () {
-                  // Open app settings (requires permission_handler package)
                   // openAppSettings();
                 },
               ),
@@ -1573,12 +1869,10 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
     if (!_hasPermission) return;
 
     try {
-      // Get the directory for storing the audio file
       final directory = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final path = '${directory.path}/voice_note_$timestamp.m4a';
 
-      // Start recording with proper config
       await _recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
@@ -1593,7 +1887,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
         _audioPath = path;
       });
 
-      // Start timer
       _startTimer();
     } catch (e) {
       if (mounted) {
@@ -1613,9 +1906,7 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
 
     Future.doWhile(() async {
       if (!mounted) return false;
-
       await Future.delayed(const Duration(seconds: 1));
-
       if (_isRecording && mounted) {
         setState(() {
           _recordDuration++;
@@ -1628,7 +1919,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
 
   Future<void> _stopRecording() async {
     if (!_isRecording) return;
-
     try {
       final path = await _recorder.stop();
       setState(() {
@@ -1647,11 +1937,8 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
 
     if (_audioPath != null) {
       File audioFile = File(_audioPath!);
-
-      // Check if file exists and has content
       if (await audioFile.exists()) {
         int fileSize = await audioFile.length();
-
         if (fileSize > 0) {
           widget.onSave(audioFile);
           if (mounted) {
@@ -1684,8 +1971,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
 
   Future<void> _cancelRecording() async {
     await _stopRecording();
-
-    // Delete the audio file if it exists
     if (_audioPath != null) {
       try {
         File audioFile = File(_audioPath!);
@@ -1696,7 +1981,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
         print('Error deleting audio file: $e');
       }
     }
-
     if (mounted) {
       Navigator.pop(context);
     }
@@ -1718,7 +2002,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
   Widget build(BuildContext context) {
     return WillPopScope(
       onWillPop: () async {
-        // Prevent back button during recording
         if (_isRecording) {
           return false;
         }
@@ -1729,22 +2012,17 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Microphone icon
             Icon(
               _isRecording ? Icons.mic : Icons.mic_off,
               size: 80,
               color: _isRecording ? Colors.red[700] : Colors.grey[400],
             ),
             const SizedBox(height: 24),
-
-            // Status text
             Text(
               _isRecording ? 'Recording...' : 'Recording Stopped',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-
-            // Duration
             Text(
               _formatDuration(_recordDuration),
               style: TextStyle(
@@ -1753,8 +2031,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
                 color: Colors.blue[700],
               ),
             ),
-
-            // Recording indicator (animated)
             if (_isRecording) ...[
               const SizedBox(height: 16),
               Row(
@@ -1768,14 +2044,10 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
                 ],
               ),
             ],
-
             const SizedBox(height: 32),
-
-            // Action buttons
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Cancel button
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _cancelRecording,
@@ -1795,8 +2067,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Save button
                 Expanded(
                   child: ElevatedButton.icon(
                     onPressed: _saveRecording,
@@ -1823,7 +2093,6 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
     );
   }
 
-  // Animated recording dot
   Widget _buildRecordingDot(int index) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),

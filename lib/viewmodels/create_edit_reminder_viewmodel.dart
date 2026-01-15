@@ -1,16 +1,16 @@
 import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/material.dart'; // This imports TimeOfDay
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/reminder_service.dart';
-import '../services/voice_note_service.dart'; // Updated import
+import '../services/voice_note_service.dart';
 import '../services/ocr_service.dart';
 import '../services/group_service.dart';
 
 class CreateEditReminderViewModel extends ChangeNotifier {
   final ReminderService _reminderService = ReminderService();
-  final VoiceNoteService _voiceNoteService = VoiceNoteService(); // Updated
+  final VoiceNoteService _voiceNoteService = VoiceNoteService();
   final OCRService _ocrService = OCRService();
   final GroupService _groupService = GroupService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
@@ -28,8 +28,17 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   String _selectedType = 'normal';
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
-  String _selectedRepeatType = 'once';
+
+  // Repeat selection (1=Mon ... 7=Sun)
+  Set<int> _selectedRepeatDays = {};
+
+  // Medication Specifics
   String _medicationFrequency = 'once';
+  int _doseCount = 1;
+  List<TimeOfDay> _doseTimes = [
+    const TimeOfDay(hour: 8, minute: 0),
+  ]; // Default 8am
+
   File? _voiceNoteFile;
   String? _existingVoiceNoteUrl;
   Map<String, dynamic>? _groupData;
@@ -40,48 +49,16 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   bool _isFetchingData = false;
   bool _isProcessingOCR = false;
   String? _errorMessage;
-  String? _assignedToUserId; // Made public accessible
+  String? _assignedToUserId;
   bool _isPlayingVoiceNote = false;
   double _voiceNotePlaybackPosition = 0.0;
   double _voiceNoteDuration = 0.0;
 
-  String get medicationFrequency => _medicationFrequency;
-  // Add these getters
-  bool get isPlayingVoiceNote => _isPlayingVoiceNote;
-  double get voiceNotePlaybackPosition => _voiceNotePlaybackPosition;
-  double get voiceNoteDuration => _voiceNoteDuration;
-
-  // Medication controllers for each medication
+  // Medication controllers for each medication row
   Map<int, Map<String, TextEditingController>> _medicationControllers = {};
 
   // Reminder types
   final List<String> reminderTypes = ['Normal', 'Medication', 'Appointment'];
-
-  // Repeat options
-  final List<String> repeatOptions = [
-    'One-time',
-    'Daily',
-    'Weekly',
-    'Monthly',
-    'Every 2 days',
-    'Every 3 days',
-    'Every 4 days',
-    'Every 5 days',
-    'Every 6 days',
-  ];
-
-  // Medication frequency options
-  final List<String> frequencyOptions = [
-    'Once daily',
-    'Twice daily',
-    'Three times daily',
-    'Four times daily',
-    'Every 4 hours',
-    'Every 6 hours',
-    'Every 8 hours',
-    'Every 12 hours',
-    'As needed',
-  ];
 
   // Meal timing options
   final List<String> mealTimingOptions = [
@@ -95,7 +72,7 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   String get selectedType => _selectedType;
   DateTime get selectedDate => _selectedDate;
   TimeOfDay get selectedTime => _selectedTime;
-  String get selectedRepeatType => _selectedRepeatType;
+  Set<int> get selectedRepeatDays => _selectedRepeatDays;
   File? get voiceNoteFile => _voiceNoteFile;
   String? get existingVoiceNoteUrl => _existingVoiceNoteUrl;
   List<Map<String, dynamic>> get medications => _medications;
@@ -108,6 +85,16 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   bool get isEditMode => reminderId != null;
   bool get isCaregiver => _groupData?['adminId'] == _currentUserId;
   String? get assignedToUserId => _assignedToUserId;
+  String get medicationFrequency => _medicationFrequency;
+
+  // Dosage Getters
+  int get doseCount => _doseCount;
+  List<TimeOfDay> get doseTimes => _doseTimes;
+
+  // Audio getters
+  bool get isPlayingVoiceNote => _isPlayingVoiceNote;
+  double get voiceNotePlaybackPosition => _voiceNotePlaybackPosition;
+  double get voiceNoteDuration => _voiceNoteDuration;
 
   CreateEditReminderViewModel({required this.groupId, this.reminderId}) {
     _initialize();
@@ -167,7 +154,22 @@ class CreateEditReminderViewModel extends ChangeNotifier {
       minute: scheduledDateTime.minute,
     );
 
-    _selectedRepeatType = reminderData['repeatType'] ?? 'once';
+    // In Edit Mode, we treat it as single dose editing
+    _doseCount = 1;
+    _doseTimes = [_selectedTime];
+
+    // Handle repeat logic conversion to Day selection
+    String repeatType = reminderData['repeatType'] ?? 'once';
+    if (repeatType == 'specific_days' && reminderData['repeatDays'] != null) {
+      _selectedRepeatDays = Set<int>.from(reminderData['repeatDays']);
+    } else if (repeatType == 'daily') {
+      _selectedRepeatDays = {1, 2, 3, 4, 5, 6, 7};
+    } else if (repeatType == 'weekly') {
+      _selectedRepeatDays = {scheduledDateTime.weekday};
+    } else {
+      _selectedRepeatDays = {};
+    }
+
     _existingVoiceNoteUrl = reminderData['voiceNoteUrl'];
 
     if (_selectedType == 'medication' &&
@@ -228,12 +230,9 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     if (_selectedType != 'medication') {
       _medications.clear();
       _medicationControllers.clear();
+    } else {
+      // If switching to medication and empty, ensure cleaner state
     }
-    if (_selectedType != 'appointment') {
-      _appointmentDate = null;
-      _appointmentTime = null;
-    }
-
     notifyListeners();
   }
 
@@ -246,39 +245,91 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   /// Set selected time
   void setTime(TimeOfDay time) {
     _selectedTime = time;
-    notifyListeners();
-  }
-
-  /// Set repeat type
-  void setRepeatType(String type) {
-    _selectedRepeatType = _convertRepeatTypeToFirestoreFormat(type);
-    notifyListeners();
-  }
-
-  /// Convert UI repeat type to Firestore format
-  String _convertRepeatTypeToFirestoreFormat(String uiType) {
-    switch (uiType) {
-      case 'One-time':
-        return 'once';
-      case 'Daily':
-        return 'daily';
-      case 'Weekly':
-        return 'weekly';
-      case 'Monthly':
-        return 'monthly';
-      case 'Every 2 days':
-        return 'every_2_days';
-      case 'Every 3 days':
-        return 'every_3_days';
-      case 'Every 4 days':
-        return 'every_4_days';
-      case 'Every 5 days':
-        return 'every_5_days';
-      case 'Every 6 days':
-        return 'every_6_days';
-      default:
-        return 'once';
+    // Also update the first dose time if in single mode
+    if (_doseTimes.isNotEmpty) {
+      _doseTimes[0] = time;
     }
+    notifyListeners();
+  }
+
+  // --- Dosage Logic ---
+
+  void incrementDose() {
+    if (_doseCount < 6) {
+      // Max 6 times a day
+      _doseCount++;
+      _recalculateDoseTimes();
+      notifyListeners();
+    }
+  }
+
+  void decrementDose() {
+    if (_doseCount > 1) {
+      _doseCount--;
+      _recalculateDoseTimes();
+      notifyListeners();
+    }
+  }
+
+  void setDoseTime(int index, TimeOfDay time) {
+    if (index >= 0 && index < _doseTimes.length) {
+      _doseTimes[index] = time;
+      notifyListeners();
+    }
+  }
+
+  void _recalculateDoseTimes() {
+    List<TimeOfDay> newTimes = [];
+
+    // Auto-populate reasonable times based on count
+    if (_doseCount == 1) {
+      newTimes = [const TimeOfDay(hour: 8, minute: 0)];
+    } else if (_doseCount == 2) {
+      newTimes = [
+        const TimeOfDay(hour: 8, minute: 0),
+        const TimeOfDay(hour: 20, minute: 0),
+      ];
+    } else if (_doseCount == 3) {
+      newTimes = [
+        const TimeOfDay(hour: 8, minute: 0),
+        const TimeOfDay(hour: 13, minute: 0),
+        const TimeOfDay(hour: 20, minute: 0),
+      ];
+    } else {
+      // Distribute evenly from 8am to 8pm
+      int startHour = 8;
+      int endHour = 20;
+      double interval = (endHour - startHour) / (_doseCount - 1);
+
+      for (int i = 0; i < _doseCount; i++) {
+        int hour = (startHour + (interval * i)).round();
+        newTimes.add(TimeOfDay(hour: hour, minute: 0));
+      }
+    }
+    _doseTimes = newTimes;
+  }
+
+  // --- Repeat Logic ---
+
+  void toggleDay(int day) {
+    if (_selectedRepeatDays.contains(day)) {
+      _selectedRepeatDays.remove(day);
+    } else {
+      _selectedRepeatDays.add(day);
+    }
+    notifyListeners();
+  }
+
+  bool isDaySelected(int day) => _selectedRepeatDays.contains(day);
+
+  void setOneTime() {
+    _selectedRepeatDays.clear();
+    notifyListeners();
+  }
+
+  void setDaily() {
+    _selectedRepeatDays = {1, 2, 3, 4, 5, 6, 7};
+    notifyListeners();
   }
 
   /// Set voice note file
@@ -287,7 +338,7 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Remove voice note (override existing method to also stop playback)
+  /// Remove voice note
   void removeVoiceNote() {
     stopVoiceNote();
     _voiceNoteFile = null;
@@ -324,12 +375,7 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   /// Add medication
   void addMedication() {
     int index = _medications.length;
-    _medications.add({
-      'name': '',
-      'dosage': '',
-      'frequency': 'Once daily',
-      'mealTiming': 'After meal',
-    });
+    _medications.add({'name': '', 'dosage': '', 'mealTiming': 'After meal'});
     _medicationControllers[index] = {
       'name': TextEditingController(),
       'dosage': TextEditingController(),
@@ -368,19 +414,40 @@ class CreateEditReminderViewModel extends ChangeNotifier {
         extractedText,
       );
 
+      // --- FIX: ALWAYS RESET/OVERWRITE DATA ---
+
+      // 1. Handle Title/Location
+      if (parsedData['location'] != null) {
+        titleController.text = "Appointment at ${parsedData['location']}";
+      } else {
+        // If no location found in THIS scan, reset to generic title
+        // (This prevents keeping the hospital name from the previous scan)
+        titleController.text = "Medical Appointment";
+      }
+
+      // 2. Handle Date
       if (parsedData['date'] != null) {
         _appointmentDate = parsedData['date'];
         _selectedDate = parsedData['date'];
+      } else {
+        // Optional: If date not found, reset to Today (or keep null if you prefer)
+        // Resetting ensures we don't keep the OLD card's date
+        _appointmentDate = DateTime.now();
+        _selectedDate = DateTime.now();
       }
 
+      // 3. Handle Time
       if (parsedData['time'] != null) {
-        // Convert Map to TimeOfDay
         Map<String, int> timeMap = parsedData['time'] as Map<String, int>;
         _appointmentTime = TimeOfDay(
           hour: timeMap['hour']!,
           minute: timeMap['minute']!,
         );
         _selectedTime = _appointmentTime!;
+      } else {
+        // Reset to current time if not found
+        _appointmentTime = TimeOfDay.now();
+        _selectedTime = TimeOfDay.now();
       }
 
       _isProcessingOCR = false;
@@ -421,19 +488,13 @@ class CreateEditReminderViewModel extends ChangeNotifier {
 
     if (_selectedType == 'medication') {
       if (_medications.isEmpty) {
-        _errorMessage = 'Please add medication';
-        notifyListeners();
-        return false;
-      }
-      // Ensure only one medication
-      if (_medications.length > 1) {
-        _errorMessage = 'Only one medication per reminder';
+        _errorMessage = 'Please add medication details';
         notifyListeners();
         return false;
       }
       for (var med in _medications) {
         if (med['name'].toString().trim().isEmpty) {
-          _errorMessage = 'Please fill in medication name';
+          _errorMessage = 'Medication name is required';
           notifyListeners();
           return false;
         }
@@ -455,6 +516,7 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 1. Upload Voice Note if exists
       String? voiceNoteUrl = _existingVoiceNoteUrl;
 
       if (_voiceNoteFile != null) {
@@ -475,11 +537,13 @@ class CreateEditReminderViewModel extends ChangeNotifier {
         );
       }
 
+      // 2. Prepare Type Specific Data
       Map<String, dynamic>? typeSpecificData;
       if (_selectedType == 'medication') {
         typeSpecificData = {
-          'medications': _medications, // Keep your existing
-          'medicationFrequency': _medicationFrequency, // ADD this
+          'medications': _medications,
+          'dosageTimesCount': _doseCount,
+          'medicationFrequency': _medicationFrequency,
         };
       } else if (_selectedType == 'appointment') {
         typeSpecificData = {
@@ -492,39 +556,118 @@ class CreateEditReminderViewModel extends ChangeNotifier {
         };
       }
 
-      String timeString =
-          '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}';
+      // 3. Date & Repeat Logic
+      DateTime finalScheduledDate = _selectedDate;
+      String repeatType = 'once';
+      List<int>? repeatDays;
 
-      if (isEditMode) {
-        await _reminderService.updateReminder(
-          reminderId: reminderId!,
-          title: titleController.text.trim(),
-          description: descriptionController.text.trim().isEmpty
-              ? null
-              : descriptionController.text.trim(),
-          type: _selectedType,
-          scheduledDate: _selectedDate,
-          scheduledTime: timeString,
-          repeatType: _selectedRepeatType,
-          voiceNoteUrl: voiceNoteUrl,
-          typeSpecificData: typeSpecificData,
-        );
+      if (_selectedRepeatDays.isNotEmpty) {
+        repeatType = 'specific_days';
+        repeatDays = _selectedRepeatDays.toList()..sort();
+
+        // Ensure the start date matches one of the selected days.
+        if (!_selectedRepeatDays.contains(_selectedDate.weekday)) {
+          finalScheduledDate = _findNextValidDate(_selectedDate, repeatDays);
+        }
+      } else if (!isEditMode && _selectedType == 'medication') {
+        // If medication is created without specific days, it's usually daily or once.
+        // We treat it as 'once' for the repeatType variable, but logic below handles rollover.
+        repeatType = 'once';
+      }
+
+      // 4. Create/Update Logic
+      // If Medication & Create Mode: Loop through dose times and create multiple
+      if (_selectedType == 'medication' && !isEditMode) {
+        DateTime now = DateTime.now();
+
+        for (TimeOfDay time in _doseTimes) {
+          // Calculate the exact date/time for this dose
+          DateTime doseDate = finalScheduledDate;
+          DateTime doseDateTime = DateTime(
+            doseDate.year,
+            doseDate.month,
+            doseDate.day,
+            time.hour,
+            time.minute,
+          );
+
+          // --- FIX: CHECK IF TIME IS PAST ---
+          if (doseDateTime.isBefore(now)) {
+            // This time has passed for the target date.
+            // Move it to the NEXT valid occurrence.
+
+            if (repeatType == 'specific_days' && repeatDays != null) {
+              // Find the next allowed day (starts checking from tomorrow)
+              doseDate = _findNextValidDate(doseDate, repeatDays);
+            } else {
+              // If Daily or Once, simply move to Tomorrow
+              doseDate = doseDate.add(const Duration(days: 1));
+            }
+          }
+          // ----------------------------------
+
+          String timeString =
+              '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+
+          await _reminderService.createReminder(
+            groupId: groupId,
+            createdBy: _currentUserId,
+            assignedTo: _assignedToUserId!,
+            title: titleController.text.trim(),
+            description: descriptionController.text.trim().isEmpty
+                ? null
+                : descriptionController.text.trim(),
+            type: _selectedType,
+            scheduledDate: doseDate, // Use the adjusted date
+            scheduledTime: timeString,
+            repeatType: repeatType,
+            repeatDays: repeatDays,
+            voiceNoteUrl: voiceNoteUrl,
+            typeSpecificData: typeSpecificData,
+          );
+        }
       } else {
-        await _reminderService.createReminder(
-          groupId: groupId,
-          createdBy: _currentUserId,
-          assignedTo: _assignedToUserId!,
-          title: titleController.text.trim(),
-          description: descriptionController.text.trim().isEmpty
-              ? null
-              : descriptionController.text.trim(),
-          type: _selectedType,
-          scheduledDate: _selectedDate,
-          scheduledTime: timeString,
-          repeatType: _selectedRepeatType,
-          voiceNoteUrl: voiceNoteUrl,
-          typeSpecificData: typeSpecificData,
-        );
+        // Normal/Appointment OR Edit Mode (Single update)
+        TimeOfDay timeToUse = _selectedType == 'medication' && isEditMode
+            ? _doseTimes[0]
+            : _selectedTime;
+
+        String timeString =
+            '${timeToUse.hour.toString().padLeft(2, '0')}:${timeToUse.minute.toString().padLeft(2, '0')}';
+
+        if (isEditMode) {
+          await _reminderService.updateReminder(
+            reminderId: reminderId!,
+            title: titleController.text.trim(),
+            description: descriptionController.text.trim().isEmpty
+                ? null
+                : descriptionController.text.trim(),
+            type: _selectedType,
+            scheduledDate: finalScheduledDate,
+            scheduledTime: timeString,
+            repeatType: repeatType,
+            repeatDays: repeatDays,
+            voiceNoteUrl: voiceNoteUrl,
+            typeSpecificData: typeSpecificData,
+          );
+        } else {
+          await _reminderService.createReminder(
+            groupId: groupId,
+            createdBy: _currentUserId,
+            assignedTo: _assignedToUserId!,
+            title: titleController.text.trim(),
+            description: descriptionController.text.trim().isEmpty
+                ? null
+                : descriptionController.text.trim(),
+            type: _selectedType,
+            scheduledDate: finalScheduledDate,
+            scheduledTime: timeString,
+            repeatType: repeatType,
+            repeatDays: repeatDays,
+            voiceNoteUrl: voiceNoteUrl,
+            typeSpecificData: typeSpecificData,
+          );
+        }
       }
 
       _isLoading = false;
@@ -536,6 +679,50 @@ class CreateEditReminderViewModel extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Delete the current reminder
+  Future<bool> deleteReminder() async {
+    if (reminderId == null) return false;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // Optional: Delete voice note from storage if it exists
+      if (_existingVoiceNoteUrl != null) {
+        try {
+          await _voiceNoteService.deleteVoiceNote(_existingVoiceNoteUrl!);
+        } catch (_) {
+          // Ignore errors deleting the file, proceed to delete record
+        }
+      }
+
+      // Delete from Firestore
+      await _reminderService.deleteReminder(reminderId!);
+
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Helper to find next valid date matching the selected days
+  DateTime _findNextValidDate(DateTime fromDate, List<int> allowedDays) {
+    DateTime tempDate = fromDate;
+    // Cap at 7 days just to be safe
+    for (int i = 0; i < 8; i++) {
+      tempDate = tempDate.add(const Duration(days: 1));
+      if (allowedDays.contains(tempDate.weekday)) {
+        return tempDate;
+      }
+    }
+    return fromDate; // Fallback
   }
 
   /// Clear error
@@ -552,7 +739,6 @@ class CreateEditReminderViewModel extends ChangeNotifier {
   }
 
   @override
-  @override
   void dispose() {
     titleController.dispose();
     descriptionController.dispose();
@@ -561,23 +747,21 @@ class CreateEditReminderViewModel extends ChangeNotifier {
       controllers['dosage']?.dispose();
     }
     _audioPlayer.dispose();
+    super.dispose();
   }
 
   // Setup audio player listeners
   void _setupAudioPlayerListeners() {
-    // Listen to playback position
     _audioPlayer.onPositionChanged.listen((Duration position) {
       _voiceNotePlaybackPosition = position.inMilliseconds / 1000.0;
       notifyListeners();
     });
 
-    // Listen to duration
     _audioPlayer.onDurationChanged.listen((Duration duration) {
       _voiceNoteDuration = duration.inMilliseconds / 1000.0;
       notifyListeners();
     });
 
-    // Listen to player state
     _audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
       if (state == PlayerState.completed) {
         _isPlayingVoiceNote = false;
@@ -592,13 +776,10 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     try {
       String? audioPath;
 
-      // Determine audio source
       if (_voiceNoteFile != null) {
-        // Play from local file
         audioPath = _voiceNoteFile!.path;
         await _audioPlayer.play(DeviceFileSource(audioPath));
       } else if (_existingVoiceNoteUrl != null) {
-        // Play from URL
         await _audioPlayer.play(UrlSource(_existingVoiceNoteUrl!));
       } else {
         return false;
@@ -637,16 +818,9 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     }
   }
 
-  /// NEW METHOD: Set medication frequency
+  /// Set medication frequency
   void setMedicationFrequency(String frequency) {
     _medicationFrequency = frequency;
     notifyListeners();
-  }
-
-  String _getTimeLabel(int hour) {
-    if (hour >= 5 && hour < 12) return 'Morning';
-    if (hour >= 12 && hour < 17) return 'Afternoon';
-    if (hour >= 17 && hour < 21) return 'Evening';
-    return 'Night';
   }
 }
