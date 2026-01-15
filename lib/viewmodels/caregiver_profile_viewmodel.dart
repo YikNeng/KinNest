@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/profile_service.dart';
@@ -5,6 +6,7 @@ import '../services/profile_service.dart';
 class CaregiverProfileViewModel extends ChangeNotifier {
   final ProfileService _profileService = ProfileService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // State variables
   Map<String, dynamic>? _userData;
@@ -28,9 +30,132 @@ class CaregiverProfileViewModel extends ChangeNotifier {
   int get groupCount => _userGroups.length;
   int get adminGroupCount =>
       _userGroups.where((g) => g['role'] == 'Admin').length;
+  String get userPhoneNumber => _userData?['phoneNumber'] ?? '';
+  bool get hasPhoneNumber => userPhoneNumber.isNotEmpty;
 
   CaregiverProfileViewModel() {
     _initialize();
+  }
+
+  /// Update user phone number
+  Future<bool> updateUserPhoneNumber({
+    required String userId,
+    required String phoneNumber,
+  }) async {
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'phoneNumber': phoneNumber.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      throw Exception('Failed to update phone number: $e');
+    }
+  }
+
+  /// Validate Malaysia phone number
+  String? validatePhoneNumber(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Phone is optional
+    }
+
+    // Remove spaces, dashes, and parentheses
+    String cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
+
+    // Malaysia phone number validation
+    // Mobile: 01X-XXXX XXXX (10-11 digits without country code)
+    // With country code: +60 1X-XXXX XXXX
+
+    if (cleaned.startsWith('+60')) {
+      // With country code: +60 must be followed by 9-11 digits
+      String withoutCode = cleaned.substring(3);
+      if (!RegExp(r'^\d{9,11}$').hasMatch(withoutCode)) {
+        return 'Invalid Malaysian phone number format';
+      }
+      // Check if mobile starts with 1
+      if (!withoutCode.startsWith('1')) {
+        return 'Malaysian mobile numbers must start with 01';
+      }
+    } else if (cleaned.startsWith('60')) {
+      // Without + but has 60: must be followed by 9-11 digits
+      String withoutCode = cleaned.substring(2);
+      if (!RegExp(r'^\d{9,11}$').hasMatch(withoutCode)) {
+        return 'Invalid Malaysian phone number format';
+      }
+      if (!withoutCode.startsWith('1')) {
+        return 'Malaysian mobile numbers must start with 01';
+      }
+    } else if (cleaned.startsWith('0')) {
+      // Local format: must be 10-11 digits starting with 01
+      if (!RegExp(r'^0\d{9,10}$').hasMatch(cleaned)) {
+        return 'Phone number must be 10-11 digits';
+      }
+      if (!cleaned.startsWith('01')) {
+        return 'Malaysian mobile numbers must start with 01';
+      }
+    } else {
+      return 'Please enter a valid Malaysian phone number';
+    }
+
+    return null;
+  }
+
+  /// Format Malaysia phone number for display
+  String formatPhoneNumber(String phoneNumber) {
+    if (phoneNumber.isEmpty) return phoneNumber;
+
+    // Remove all non-digit characters except +
+    String cleaned = phoneNumber.replaceAll(RegExp(r'[^\d\+]'), '');
+
+    if (cleaned.isEmpty) return phoneNumber;
+
+    // Format Malaysia phone numbers
+    if (cleaned.startsWith('+60')) {
+      // International format: +60 1X-XXXX XXXX
+      String withoutCode = cleaned.substring(3);
+      if (withoutCode.length >= 9) {
+        String prefix = withoutCode.substring(0, 2); // 01X
+        String middle = withoutCode.substring(2, withoutCode.length - 4);
+        String last = withoutCode.substring(withoutCode.length - 4);
+        return '+60 $prefix-$middle $last';
+      }
+      return cleaned;
+    } else if (cleaned.startsWith('60')) {
+      // Without +: 60 1X-XXXX XXXX
+      String withoutCode = cleaned.substring(2);
+      if (withoutCode.length >= 9) {
+        String prefix = withoutCode.substring(0, 2); // 01X
+        String middle = withoutCode.substring(2, withoutCode.length - 4);
+        String last = withoutCode.substring(withoutCode.length - 4);
+        return '+60 $prefix-$middle $last';
+      }
+      return '+' + cleaned;
+    } else if (cleaned.startsWith('0')) {
+      // Local format: 01X-XXXX XXXX
+      if (cleaned.length == 10) {
+        // 10 digits: 01X-XXX XXXX
+        return '${cleaned.substring(0, 3)}-${cleaned.substring(3, 6)} ${cleaned.substring(6)}';
+      } else if (cleaned.length == 11) {
+        // 11 digits: 01X-XXXX XXXX
+        return '${cleaned.substring(0, 3)}-${cleaned.substring(3, 7)} ${cleaned.substring(7)}';
+      }
+      return cleaned;
+    }
+
+    return phoneNumber;
+  }
+
+  /// Get Malaysia phone number examples
+  String getPhoneNumberHint() {
+    return '010-123 4567 or +60 10-123 4567';
+  }
+
+  /// Get Malaysia phone number help text
+  String getPhoneNumberHelpText() {
+    return 'Malaysian format:\n'
+        '• Local: 01X-XXXX XXXX\n'
+        '• International: +60 1X-XXXX XXXX';
   }
 
   /// Initialize - fetch user data and groups
