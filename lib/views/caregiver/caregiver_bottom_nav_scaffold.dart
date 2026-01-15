@@ -35,6 +35,12 @@ class _CaregiverBottomNavScaffoldBody extends StatelessWidget {
       label: 'Home',
     ),
     _NavItem(
+      route: '/caregiver/reminders',
+      icon: Icons.notifications_none_outlined,
+      activeIcon: Icons.notifications_none_outlined,
+      label: 'Reminders',
+    ),
+    _NavItem(
       route: '/caregiver/groups',
       icon: Icons.group_outlined,
       activeIcon: Icons.group,

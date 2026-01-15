@@ -29,6 +29,7 @@ import '../views/elderly/elderly_exercise_routine_page.dart';
 
 // Import caregiver pages
 import '../views/caregiver/caregiver_groups_page.dart';
+import '../views/caregiver/caregiver_reminder_list_page.dart'; // NEW
 import '../views/caregiver/caregiver_profile_page.dart';
 
 // Import ViewModels
@@ -186,6 +187,10 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
           GoRoute(
             path: '/caregiver/home',
             builder: (context, state) => const CaregiverHomePage(),
+          ),
+          GoRoute(
+            path: '/caregiver/reminders', // NEW ROUTE
+            builder: (context, state) => const CaregiverReminderListPage(),
           ),
           GoRoute(
             path: '/caregiver/groups',

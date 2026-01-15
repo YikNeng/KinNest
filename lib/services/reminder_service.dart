@@ -885,4 +885,72 @@ class ReminderService {
       return '${scheduled.day} ${months[scheduled.month - 1]}';
     }
   }
+
+  /// Get upcoming reminders for a group (caregiver view - all reminders)
+  /// This fetches ALL upcoming reminders, not just the next 5
+  Future<List<Map<String, dynamic>>> getAllUpcomingRemindersForGroup(
+    String groupId,
+  ) async {
+    try {
+      DateTime now = DateTime.now();
+      Timestamp nowTimestamp = Timestamp.fromDate(now);
+
+      QuerySnapshot snapshot = await _firestore
+          .collection('reminders')
+          .where('groupId', isEqualTo: groupId)
+          .where('scheduledTime', isGreaterThanOrEqualTo: nowTimestamp)
+          .orderBy('scheduledTime', descending: false)
+          .get();
+
+      List<Map<String, dynamic>> reminders = [];
+
+      for (var doc in snapshot.docs) {
+        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+        data['reminderId'] = doc.id;
+
+        // Only include if not completed (or if recurring)
+        bool isCompleted = data['isCompleted'] ?? false;
+        String repeatType = data['repeatType'] ?? 'once';
+
+        if (!isCompleted || repeatType != 'once') {
+          reminders.add(data);
+        }
+      }
+
+      return reminders;
+    } catch (e) {
+      throw Exception('Failed to fetch upcoming reminders: $e');
+    }
+  }
+
+  /// Get elderly user display name
+  Future<String> getElderlyDisplayName(String elderlyId) async {
+    try {
+      DocumentSnapshot userDoc = await _firestore
+          .collection('users')
+          .doc(elderlyId)
+          .get();
+
+      if (!userDoc.exists) {
+        return 'Unknown User';
+      }
+
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      String name = userData['name'] ?? '';
+
+      if (name.isNotEmpty) {
+        return name;
+      }
+
+      // Fallback to email
+      String email = userData['email'] ?? '';
+      if (email.isNotEmpty) {
+        return email.split('@').first;
+      }
+
+      return 'Unknown User';
+    } catch (e) {
+      return 'Unknown User';
+    }
+  }
 }
