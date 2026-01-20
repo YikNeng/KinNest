@@ -7,12 +7,15 @@ import '../services/reminder_service.dart';
 import '../services/voice_note_service.dart';
 import '../services/ocr_service.dart';
 import '../services/group_service.dart';
+import '../services/alarm_service.dart';
 
 class CreateEditReminderViewModel extends ChangeNotifier {
   final ReminderService _reminderService = ReminderService();
   final VoiceNoteService _voiceNoteService = VoiceNoteService();
   final OCRService _ocrService = OCRService();
   final GroupService _groupService = GroupService();
+  final AlarmService _alarmService = AlarmService();
+
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   final String groupId;
@@ -575,6 +578,11 @@ class CreateEditReminderViewModel extends ChangeNotifier {
         repeatType = 'once';
       }
 
+      // ✅ CANCEL OLD ALARM if in edit mode (before any updates)
+      if (isEditMode && reminderId != null) {
+        await _alarmService.cancelReminderAlarm(reminderId!);
+      }
+
       // 4. Create/Update Logic
       // If Medication & Create Mode: Loop through dose times and create multiple
       if (_selectedType == 'medication' && !isEditMode) {
@@ -591,7 +599,6 @@ class CreateEditReminderViewModel extends ChangeNotifier {
             time.minute,
           );
 
-          // --- FIX: CHECK IF TIME IS PAST ---
           if (doseDateTime.isBefore(now)) {
             // This time has passed for the target date.
             // Move it to the NEXT valid occurrence.
@@ -604,12 +611,12 @@ class CreateEditReminderViewModel extends ChangeNotifier {
               doseDate = doseDate.add(const Duration(days: 1));
             }
           }
-          // ----------------------------------
 
           String timeString =
               '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
-          await _reminderService.createReminder(
+          // ✅ CREATE REMINDER and get the ID
+          String createdReminderId = await _reminderService.createReminder(
             groupId: groupId,
             createdBy: _currentUserId,
             assignedTo: _assignedToUserId!,
@@ -625,6 +632,25 @@ class CreateEditReminderViewModel extends ChangeNotifier {
             voiceNoteUrl: voiceNoteUrl,
             typeSpecificData: typeSpecificData,
           );
+
+          // ✅ SCHEDULE ALARM for this medication dose (if in future)
+          DateTime finalDoseDateTime = DateTime(
+            doseDate.year,
+            doseDate.month,
+            doseDate.day,
+            time.hour,
+            time.minute,
+          );
+
+          if (finalDoseDateTime.isAfter(DateTime.now())) {
+            await _alarmService.scheduleReminderAlarm(
+              reminderId: createdReminderId,
+              title: titleController.text.trim(),
+              description: descriptionController.text.trim(),
+              scheduledTime: finalDoseDateTime,
+              reminderType: _selectedType,
+            );
+          }
         }
       } else {
         // Normal/Appointment OR Edit Mode (Single update)
@@ -635,7 +661,20 @@ class CreateEditReminderViewModel extends ChangeNotifier {
         String timeString =
             '${timeToUse.hour.toString().padLeft(2, '0')}:${timeToUse.minute.toString().padLeft(2, '0')}';
 
+        // Calculate final scheduled DateTime
+        DateTime finalScheduledDateTime = DateTime(
+          finalScheduledDate.year,
+          finalScheduledDate.month,
+          finalScheduledDate.day,
+          timeToUse.hour,
+          timeToUse.minute,
+        );
+
         if (isEditMode) {
+          // ✅ CANCEL OLD ALARM
+          await _alarmService.cancelReminderAlarm(reminderId!);
+
+          // ✅ UPDATE REMINDER
           await _reminderService.updateReminder(
             reminderId: reminderId!,
             title: titleController.text.trim(),
@@ -650,8 +689,20 @@ class CreateEditReminderViewModel extends ChangeNotifier {
             voiceNoteUrl: voiceNoteUrl,
             typeSpecificData: typeSpecificData,
           );
+
+          // ✅ SCHEDULE NEW ALARM (if in future)
+          if (finalScheduledDateTime.isAfter(DateTime.now())) {
+            await _alarmService.scheduleReminderAlarm(
+              reminderId: reminderId!,
+              title: titleController.text.trim(),
+              description: descriptionController.text.trim(),
+              scheduledTime: finalScheduledDateTime,
+              reminderType: _selectedType,
+            );
+          }
         } else {
-          await _reminderService.createReminder(
+          // ✅ CREATE NEW REMINDER and get the ID
+          String createdReminderId = await _reminderService.createReminder(
             groupId: groupId,
             createdBy: _currentUserId,
             assignedTo: _assignedToUserId!,
@@ -667,6 +718,17 @@ class CreateEditReminderViewModel extends ChangeNotifier {
             voiceNoteUrl: voiceNoteUrl,
             typeSpecificData: typeSpecificData,
           );
+
+          // ✅ SCHEDULE ALARM (if in future)
+          if (finalScheduledDateTime.isAfter(DateTime.now())) {
+            await _alarmService.scheduleReminderAlarm(
+              reminderId: createdReminderId,
+              title: titleController.text.trim(),
+              description: descriptionController.text.trim(),
+              scheduledTime: finalScheduledDateTime,
+              reminderType: _selectedType,
+            );
+          }
         }
       }
 
@@ -689,6 +751,9 @@ class CreateEditReminderViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // ✅ CANCEL ALARM before deleting
+      await _alarmService.cancelReminderAlarm(reminderId!);
+
       // Optional: Delete voice note from storage if it exists
       if (_existingVoiceNoteUrl != null) {
         try {

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:latest_fyp/services/alarm_service.dart';
 import 'notification_service.dart';
 
 class ReminderService {
@@ -109,6 +110,10 @@ class ReminderService {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
+      // ✅ CANCEL CURRENT ALARM (always cancel first)
+      final AlarmService alarmService = AlarmService();
+      await alarmService.cancelReminderAlarm(reminderId);
+
       // If recurring, schedule next occurrence
       if (isRecurring) {
         Timestamp currentScheduledTimestamp = reminderData['scheduledTime'];
@@ -131,12 +136,32 @@ class ReminderService {
         updateData['isOverdueNotified'] = false;
         updateData['completedAt'] =
             Timestamp.now(); // Keep last completion timestamp reference
-      }
 
-      await _firestore
-          .collection('reminders')
-          .doc(reminderId)
-          .update(updateData);
+        // Update Firestore first
+        await _firestore
+            .collection('reminders')
+            .doc(reminderId)
+            .update(updateData);
+
+        // ✅ SCHEDULE NEW ALARM for next occurrence (only if in future)
+        if (nextScheduledTime.isAfter(DateTime.now())) {
+          await alarmService.scheduleReminderAlarm(
+            reminderId: reminderId,
+            title: reminderData['title'] ?? 'Reminder',
+            description: reminderData['description'] ?? '',
+            scheduledTime: nextScheduledTime,
+            reminderType: reminderData['type'] ?? 'normal',
+          );
+        }
+      } else {
+        // One-time reminder - just update without rescheduling alarm
+        await _firestore
+            .collection('reminders')
+            .doc(reminderId)
+            .update(updateData);
+
+        // Alarm already cancelled above, no need to reschedule
+      }
     } catch (e) {
       throw Exception('Failed to mark reminder as complete: $e');
     }
@@ -537,13 +562,18 @@ class ReminderService {
         reminderData['typeSpecificData'] = typeSpecificData;
       }
 
-      // Inside createReminder method...
-
+      // Create the reminder document
       DocumentReference docRef = await _firestore
           .collection('reminders')
           .add(reminderData);
 
-      // --- ADD THIS BLOCK ---
+      // ✅ GET THE REMINDER ID
+      String reminderId = docRef.id;
+
+      // ✅ UPDATE DOCUMENT WITH reminderId FIELD
+      await docRef.update({'reminderId': reminderId});
+
+      // --- SEND NOTIFICATIONS ---
       try {
         // Get creator details to know who is sending it
         Map<String, dynamic>? creator = await getUserDetails(createdBy);
@@ -569,9 +599,10 @@ class ReminderService {
       } catch (e) {
         print("Notification Error: $e"); // Log error but don't stop the app
       }
-      // --- END BLOCK ---
+      // --- END NOTIFICATIONS ---
 
-      return docRef.id;
+      // ✅ RETURN THE REMINDER ID
+      return reminderId;
     } catch (e) {
       throw Exception('Failed to create reminder: $e');
     }

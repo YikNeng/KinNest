@@ -3,35 +3,64 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:latest_fyp/services/alarm_service.dart';
 import 'package:provider/provider.dart';
 import 'package:latest_fyp/services/user_service.dart';
 import 'providers/auth_state_provider.dart';
 import 'router/app_router.dart';
+import 'package:timezone/data/latest.dart' as tz; // Add this import
 
 // 1. Initialize Local Notifications (Global)
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-// 2. Define the Channel (Must match AndroidManifest)
-const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'high_importance_channel', // id
-  'High Importance Notifications', // title
-  description:
-      'This channel is used for important notifications.', // description
+// 2. HIGH IMPORTANCE CHANNEL (for FCM notifications)
+const AndroidNotificationChannel highImportanceChannel =
+    AndroidNotificationChannel(
+      'high_importance_channel',
+      'High Importance Notifications',
+      description: 'This channel is used for important notifications.',
+      importance: Importance.max,
+    );
+
+// 3. ALARM CHANNEL (for local alarm notifications) - CRITICAL!
+const AndroidNotificationChannel alarmChannel = AndroidNotificationChannel(
+  'reminder_alarms', // MUST match AlarmService channel ID
+  'Reminder Alarms',
+  description: 'Alarms for medication and appointment reminders',
   importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+  showBadge: true,
 );
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
+  tz.initializeTimeZones();
 
-  // 3. Create the Channel (Critical for Android Pop-ups)
-  await flutterLocalNotificationsPlugin
+  await Firebase.initializeApp();
+  print('✅ Firebase initialized');
+
+  // Initialize alarm service FIRST
+  await AlarmService().initialize();
+  print('✅ AlarmService initialized');
+
+  // 3. Create BOTH notification channels
+  final androidImpl = flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(channel);
+      >();
+
+  if (androidImpl != null) {
+    // Create high importance channel (FCM)
+    await androidImpl.createNotificationChannel(highImportanceChannel);
+    print('✅ High importance channel created');
+
+    // Create alarm channel (Local alarms) - CRITICAL!
+    await androidImpl.createNotificationChannel(alarmChannel);
+    print('✅ Alarm channel created');
+  }
 
   // 4. Force Foreground Notifications
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
@@ -39,26 +68,45 @@ void main() async {
     badge: true,
     sound: true,
   );
+  String? initialRoute;
+  try {
+    final NotificationAppLaunchDetails? notificationAppLaunchDetails =
+        await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
 
+    if (notificationAppLaunchDetails?.didNotificationLaunchApp ?? false) {
+      final payload =
+          notificationAppLaunchDetails!.notificationResponse?.payload;
+      if (payload != null) {
+        print(
+          '🚀 App launched via Alarm! Redirecting to: /reminder-alarm/$payload',
+        );
+        initialRoute = '/reminder-alarm/$payload';
+      }
+    }
+  } catch (e) {
+    print('Error checking notification launch: $e');
+  }
+  // 5. Listen to auth state changes
   FirebaseAuth.instance.authStateChanges().listen((User? user) {
     if (user != null) {
-      print(
-        "Auth Listener: User logged in (${user.uid}). Setting up notifications...",
-      );
+      print('👤 User logged in: ${user.uid}');
       setupNotifications(user.uid);
+
+      // Schedule all pending reminders for this user
+      AlarmService().scheduleAllUserReminders(user.uid);
     } else {
-      print("Auth Listener: User is logged out.");
+      print('👤 User logged out');
     }
   });
 
-  runApp(const MyApp());
+  print('✅ App initialization complete');
+  runApp(MyApp(initialRoute: initialRoute));
 }
 
 // --------------------------------------------------------------------------
 // Notification Setup Logic
 // --------------------------------------------------------------------------
 Future<void> setupNotifications(String? userId) async {
-  // Safety check: Don't run if no user ID provided
   if (userId == null) return;
 
   FirebaseMessaging messaging = FirebaseMessaging.instance;
@@ -71,75 +119,60 @@ Future<void> setupNotifications(String? userId) async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print('User granted permission');
+    print('✅ FCM permission granted');
 
-    // 1. Get the current token immediately
+    // 1. Get the current token
     String? token = await messaging.getToken();
 
     if (token != null) {
-      // Save it to Firestore using your UserService
-      // (Ensure your UserService.saveUserToken uses SetOptions(merge: true))
-      print('Saving FCM Token for user: $userId');
+      print('📱 FCM Token: ${token.substring(0, 20)}...');
       await UserService().saveUserToken(userId, token);
     }
 
-    // 2. Listen for future token refreshes (e.g. while app is running)
+    // 2. Listen for token refreshes
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      print('FCM Token refreshed. Updating Firestore...');
+      print('🔄 FCM Token refreshed');
       UserService().saveUserToken(userId, newToken);
     });
 
-    // 3. Handle Foreground Messages (Optional debugging)
+    // 3. Handle Foreground Messages
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('Got a message whilst in the foreground!');
-      print('Message data: ${message.data}');
-
-      if (message.notification != null) {
-        print('Message also contained a notification: ${message.notification}');
-
-        // Optional: Show local notification manually if needed
-        /*
-        RemoteNotification? notification = message.notification;
-        AndroidNotification? android = message.notification?.android;
-
-        if (notification != null && android != null) {
-          flutterLocalNotificationsPlugin.show(
-            notification.hashCode,
-            notification.title,
-            notification.body,
-            NotificationDetails(
-              android: AndroidNotificationDetails(
-                channel.id,
-                channel.name,
-                channelDescription: channel.description,
-                icon: 'launch_background',
-              ),
-            ),
-          );
-        }
-        */
-      }
+      print('📬 Foreground message received');
+      print('  Title: ${message.notification?.title}');
+      print('  Body: ${message.notification?.body}');
     });
   } else {
-    print('User declined or has not accepted permission');
+    print('❌ FCM permission denied');
   }
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final String? initialRoute;
+  MyApp({Key? key, this.initialRoute}) : super(key: key);
+
+  // Create navigator key - CRITICAL for alarm navigation
+  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
+    // Set navigator key for AlarmService - CRITICAL!
+    AlarmService.navigatorKey = navigatorKey;
+    print('🗺️ Navigator key set for AlarmService');
+
     return ChangeNotifierProvider(
       create: (_) => AuthStateProvider(),
       child: Builder(
         builder: (context) {
           final authStateProvider = Provider.of<AuthStateProvider>(
             context,
-            listen: true, // Listen to changes to trigger re-builds on login
+            listen: true,
           );
 
-          final router = createRouter(authStateProvider);
+          // PASS THE INITIAL ROUTE HERE
+          final router = createRouter(
+            authStateProvider,
+            initialLocation: initialRoute,
+          );
 
           return MaterialApp.router(
             title: 'Smart Elderly Care',

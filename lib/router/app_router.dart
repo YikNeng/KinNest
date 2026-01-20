@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latest_fyp/views/caregiver/manage_group_members_page.dart';
+import 'package:latest_fyp/views/elderly/reminder_alarm_overlay_page.dart';
 import 'package:provider/provider.dart';
 import 'package:latest_fyp/views/caregiver/caregiver_home_page.dart';
 import 'package:latest_fyp/views/caregiver/create_group_page.dart';
@@ -35,11 +36,14 @@ import '../views/caregiver/caregiver_profile_page.dart';
 import '../viewmodels/exercise_viewmodel.dart';
 
 /// Creates GoRouter instance with auth-based and role-based redirects
-GoRouter createRouter(AuthStateProvider authStateProvider) {
+GoRouter createRouter(
+  AuthStateProvider authStateProvider, {
+  String? initialLocation,
+}) {
   final UserService userService = UserService();
 
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: initialLocation ?? '/login',
     refreshListenable: authStateProvider,
 
     // Global redirect logic
@@ -47,6 +51,10 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
       final bool isAuthenticated = authStateProvider.isAuthenticated;
       final bool isInitialized = authStateProvider.isInitialized;
       final String currentPath = state.uri.path;
+
+      if (currentPath.startsWith('/reminder-alarm/')) {
+        return null;
+      }
 
       // Show loading while Firebase Auth initializes
       if (!isInitialized) {
@@ -131,7 +139,17 @@ GoRouter createRouter(AuthStateProvider authStateProvider) {
         path: '/register',
         builder: (context, state) => const RegisterView(),
       ),
-
+      GoRoute(
+        path: '/reminder-alarm/:reminderId',
+        name: 'reminder-alarm',
+        pageBuilder: (context, state) {
+          final reminderId = state.pathParameters['reminderId']!;
+          return MaterialPage(
+            fullscreenDialog: true,
+            child: ReminderAlarmOverlayPage(reminderId: reminderId),
+          );
+        },
+      ),
       // Elderly routes with bottom navigation
       ShellRoute(
         builder: (context, state, child) {

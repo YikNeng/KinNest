@@ -158,9 +158,6 @@ class _CaregiverHomePageBody extends StatelessWidget {
     );
   }
 
-  // Rest of the methods remain the same...
-  // (Copy all other methods from the previous version)
-
   // Nearest Reminder Section
   Widget _buildNearestReminderSection(
     BuildContext context,

@@ -1,8 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/alarm_service.dart';
 
 class LoginViewModel extends ChangeNotifier {
   final AuthService _authService = AuthService();
+  final AlarmService _alarmService = AlarmService();
 
   // Form controllers
   final TextEditingController emailController = TextEditingController();
@@ -95,6 +99,25 @@ class LoginViewModel extends ChangeNotifier {
         email: emailController.text.trim(),
         password: passwordController.text,
       );
+
+      // ✅ SCHEDULE ALL PENDING REMINDERS for logged-in user
+      String userId = FirebaseAuth.instance.currentUser!.uid;
+
+      // Get user role to check if elderly
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (userDoc.exists) {
+        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+        String role = userData['role'] ?? '';
+
+        // Only schedule alarms for elderly users
+        if (role == 'elderly') {
+          await _alarmService.scheduleAllUserReminders(userId);
+        }
+      }
 
       // Login successful
       if (!_isDisposed) {

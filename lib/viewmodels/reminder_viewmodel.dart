@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/reminder_service.dart';
+import '../services/alarm_service.dart'; // ADD THIS IMPORT
 
 class ReminderViewModel extends ChangeNotifier {
   final ReminderService _reminderService = ReminderService();
+  final AlarmService _alarmService = AlarmService(); // ADD THIS LINE
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   // Stream subscriptions
@@ -240,7 +242,13 @@ class ReminderViewModel extends ChangeNotifier {
     DateTime now = DateTime.now();
     int activeOverdueCount = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
-      bool isOverdue = ts.toDate().isBefore(now);
+
+      // Only count as overdue if 2 minutes have passed since scheduled time
+      // The logic: If (Scheduled Time + 2 mins) is before Now, then it's overdue.
+      bool isOverdue = ts
+          .toDate()
+          .add(const Duration(minutes: 2))
+          .isBefore(now);
 
       // Ensure we respect the user role filter
       bool isUserBound = isElderly ? r['assignedTo'] == _currentUserId : true;
@@ -277,6 +285,9 @@ class ReminderViewModel extends ChangeNotifier {
         repeatInterval: repeatInterval,
         repeatDays: repeatDays,
       );
+
+      // ✅ CANCEL ALARM after completing
+      await _alarmService.cancelReminderAlarm(reminderId);
 
       return true;
     } catch (e) {
@@ -334,6 +345,20 @@ class ReminderViewModel extends ChangeNotifier {
       _reminderService.formatReminderTime(ts);
 
   bool isCompleted(Map<String, dynamic> r) => r['isCompleted'] == true;
+
+  String getStatusTag(Map<String, dynamic> reminder) {
+    if (reminder['isCompleted'] == true) {
+      return 'Completed';
+    }
+    return 'Overdue';
+  }
+
+  Color getStatusColor(Map<String, dynamic> reminder) {
+    if (reminder['isCompleted'] == true) {
+      return Colors.green;
+    }
+    return Colors.red;
+  }
 
   Future<void> refresh() async {
     _subscribeToReminders();
