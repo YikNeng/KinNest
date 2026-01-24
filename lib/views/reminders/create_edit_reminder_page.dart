@@ -709,22 +709,24 @@ class _CreateEditReminderPageBody extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          OutlinedButton.icon(
-            onPressed: () => _rerecordVoiceNote(context, viewModel),
-            icon: Icon(Icons.mic, size: 20),
-            label: Text(
-              'Re-record',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.green[700],
-              side: BorderSide(color: Colors.green[700]!, width: 2),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+          if (viewModel.isCaregiver) ...[
+            OutlinedButton.icon(
+              onPressed: () => _rerecordVoiceNote(context, viewModel),
+              icon: Icon(Icons.mic, size: 20),
+              label: Text(
+                'Re-record',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.green[700],
+                side: BorderSide(color: Colors.green[700]!, width: 2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

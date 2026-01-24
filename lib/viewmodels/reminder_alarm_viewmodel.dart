@@ -9,7 +9,6 @@ import '../services/reminder_service.dart'; //
 
 class ReminderAlarmViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
   final AlarmService _alarmService = AlarmService();
   final ReminderService _reminderService =
       ReminderService(); // Use the shared service
@@ -27,6 +26,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
   Timer? _timeoutTimer;
   Timer? _countdownTimer;
   bool _isDisposed = false;
+  bool _shouldClose = false;
 
   // Getters
   Map<String, dynamic>? get reminderData => _reminderData;
@@ -35,6 +35,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
   bool get isPlayingVoiceNote => _isPlayingVoiceNote;
   bool get isCompleting => _isCompleting;
   int get secondsRemaining => _secondsRemaining;
+  bool get shouldClose => _shouldClose;
   String get formattedTimeRemaining {
     int minutes = _secondsRemaining ~/ 60;
     int seconds = _secondsRemaining % 60;
@@ -177,8 +178,8 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       // Cancel the notification/alarm so it stops ringing
       await _alarmService.cancelReminderAlarm(reminderId);
 
-      // We do NOT close the screen automatically here (unless you want to),
-      // allowing the user to see they missed it when they eventually look.
+      _shouldClose = true;
+      notifyListeners(); // Tell the View to rebuild/check this flag
     } catch (e) {
       print('Error handling timeout: $e');
     }

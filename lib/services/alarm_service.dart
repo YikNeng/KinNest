@@ -133,12 +133,19 @@ class AlarmService {
           channelDescription: 'Alarms for medication and appointment reminders',
           importance: Importance.max,
           priority: Priority.high,
-          playSound: true,
-          enableVibration: true,
-          vibrationPattern: Int64List.fromList([0, 1000, 500, 1000]),
 
-          // CRITICAL: These settings make it show as full-screen alarm
-          fullScreenIntent: true,
+          // SOUND CONFIGURATION
+          playSound: true,
+          sound: const RawResourceAndroidNotificationSound(
+            'alarm_sound',
+          ), // <--- Your file name
+          audioAttributesUsage:
+              AudioAttributesUsage.alarm, // Forces "Alarm" volume stream
+
+          additionalFlags: Int32List.fromList(<int>[4]),
+          enableVibration: true,
+          vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+          fullScreenIntent: true, // Keep this for lock screen overlay
           category: AndroidNotificationCategory.alarm,
           visibility: NotificationVisibility.public,
 
@@ -292,7 +299,7 @@ class AlarmService {
 
     const AndroidNotificationDetails androidDetails =
         AndroidNotificationDetails(
-          'reminder_alarms',
+          'reminder_alarms_v2',
           'Reminder Alarms',
           channelDescription: 'Alarms for medication and appointment reminders',
           importance: Importance.max,

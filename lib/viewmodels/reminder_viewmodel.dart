@@ -3,17 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/reminder_service.dart';
-import '../services/alarm_service.dart'; // ADD THIS IMPORT
+import '../services/alarm_service.dart';
 
 class ReminderViewModel extends ChangeNotifier {
   final ReminderService _reminderService = ReminderService();
-  final AlarmService _alarmService = AlarmService(); // ADD THIS LINE
+  final AlarmService _alarmService = AlarmService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
   // Stream subscriptions
   StreamSubscription<List<Map<String, dynamic>>>? _remindersSubscription;
-  StreamSubscription<QuerySnapshot>?
-  _historySubscription; // <--- NEW: Listens to history count
+  StreamSubscription<QuerySnapshot>? _historySubscription;
 
   // Disposal tracking
   bool _isDisposed = false;
@@ -31,7 +30,7 @@ class ReminderViewModel extends ChangeNotifier {
   String? _errorMessage;
 
   // Counters
-  int _pastCount = 0; // <--- NEW: Stores the actual count
+  int _pastCount = 0;
 
   // Getters
   String? get userRole => _userRole;
@@ -84,7 +83,7 @@ class ReminderViewModel extends ChangeNotifier {
       if (!_isDisposed && _groups.isNotEmpty) {
         _selectedGroup = _groups.first;
         _subscribeToReminders();
-        _subscribeToHistory(); // <--- NEW: Start counting history
+        _subscribeToHistory();
       } else {
         _isLoading = false;
         notifyListeners();
@@ -132,7 +131,7 @@ class ReminderViewModel extends ChangeNotifier {
     _allReminders = [];
     notifyListeners();
     _subscribeToReminders();
-    _subscribeToHistory(); // <--- NEW: Switch history listener when group changes
+    _subscribeToHistory();
   }
 
   void _subscribeToReminders() {
@@ -162,50 +161,52 @@ class ReminderViewModel extends ChangeNotifier {
         );
   }
 
-  // --- NEW: History Counting Logic ---
   void _subscribeToHistory() {
     _historySubscription?.cancel();
 
-    // Listens to the count of history docs (completed or overdue)
-    // NOTE: This counts ALL history in the collection.
-    // If you add groupId to reminder_history later, add .where('groupId', ...) here.
     _historySubscription = FirebaseFirestore.instance
         .collection('reminder_history')
         .where('status', whereIn: ['completed', 'overdue'])
         .snapshots()
         .listen((snapshot) {
           if (_isDisposed) return;
-          _pastCount = snapshot.docs.length; // Update the counter
-          notifyListeners(); // Refresh UI to show new badge number
+          _pastCount = snapshot.docs.length;
+          notifyListeners();
         });
   }
+
+  // --- FILTERED LIST LOGIC ---
 
   List<Map<String, dynamic>> _getFilteredReminders() {
     DateTime now = DateTime.now();
     List<Map<String, dynamic>> filtered;
 
     if (_filterMode == 'upcoming') {
+      // UPCOMING Logic:
+      // Include items that are in the future OR within the 2-minute buffer.
+      // Must NOT be completed.
       filtered =
           _allReminders.where((r) {
-            // 1. FIRST: Check if it is already completed
-            if (r['isCompleted'] == true) {
-              return false; // Hide completed tasks immediately
-            }
+            if (r['isCompleted'] == true) return false;
 
-            // 2. Then check the time (or show all incomplete if you prefer)
             Timestamp ts = r['scheduledTime'];
-            return ts.toDate().isAfter(now) ||
-                ts.toDate().isAtSameMomentAs(now);
+            // Keep in 'Upcoming' until 2 minutes AFTER scheduled time
+            return ts.toDate().add(const Duration(minutes: 2)).isAfter(now);
           }).toList()..sort(
             (a, b) =>
                 (a['scheduledTime'] as Timestamp).compareTo(b['scheduledTime']),
           );
     } else {
-      // Past view logic...
+      // PAST/OVERDUE Logic:
+      // Include items that are strictly older than (Now - 2 minutes).
+      // CRITICAL: Must NOT be completed (Completed items come from History stream).
       filtered =
           _allReminders.where((r) {
+            if (r['isCompleted'] == true) return false; // Prevents duplicates!
+
             Timestamp ts = r['scheduledTime'];
-            return ts.toDate().isBefore(now);
+            // Move to 'Past' only after the 2-minute buffer has passed
+            return ts.toDate().add(const Duration(minutes: 2)).isBefore(now);
           }).toList()..sort(
             (a, b) =>
                 (b['scheduledTime'] as Timestamp).compareTo(a['scheduledTime']),
@@ -225,12 +226,14 @@ class ReminderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Counters
+  // --- COUNTERS ---
+
   int get upcomingCount {
     DateTime now = DateTime.now();
     var list = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
-      return (ts.toDate().isAfter(now) || ts.toDate().isAtSameMomentAs(now)) &&
+      // Matches the list logic: Include buffer
+      return (ts.toDate().add(const Duration(minutes: 2)).isAfter(now)) &&
           r['isCompleted'] != true;
     });
     if (isElderly) list = list.where((r) => r['assignedTo'] == _currentUserId);
@@ -238,22 +241,21 @@ class ReminderViewModel extends ChangeNotifier {
   }
 
   int get pastCount {
-    // 1. Calculate Active Overdue Count
     DateTime now = DateTime.now();
+    // 1. Calculate Active Overdue Count (Incomplete items past the buffer)
     int activeOverdueCount = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
 
-      // Only count as overdue if 2 minutes have passed since scheduled time
-      // The logic: If (Scheduled Time + 2 mins) is before Now, then it's overdue.
+      // Only count as overdue if 2 minutes have passed
       bool isOverdue = ts
           .toDate()
           .add(const Duration(minutes: 2))
           .isBefore(now);
+      bool isIncomplete = r['isCompleted'] != true; // Crucial for deduplication
 
-      // Ensure we respect the user role filter
       bool isUserBound = isElderly ? r['assignedTo'] == _currentUserId : true;
 
-      return isOverdue && isUserBound;
+      return isOverdue && isIncomplete && isUserBound;
     }).length;
 
     // 2. Return combined count (Firestore History + Active Overdue)
@@ -286,7 +288,6 @@ class ReminderViewModel extends ChangeNotifier {
         repeatDays: repeatDays,
       );
 
-      // ✅ CANCEL ALARM after completing
       await _alarmService.cancelReminderAlarm(reminderId);
 
       return true;
@@ -374,7 +375,7 @@ class ReminderViewModel extends ChangeNotifier {
   void dispose() {
     _isDisposed = true;
     _remindersSubscription?.cancel();
-    _historySubscription?.cancel(); // <--- Important: Cleanup history listener
+    _historySubscription?.cancel();
     super.dispose();
   }
 }

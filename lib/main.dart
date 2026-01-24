@@ -25,7 +25,7 @@ const AndroidNotificationChannel highImportanceChannel =
 
 // 3. ALARM CHANNEL (for local alarm notifications) - CRITICAL!
 const AndroidNotificationChannel alarmChannel = AndroidNotificationChannel(
-  'reminder_alarms', // MUST match AlarmService channel ID
+  'reminder_alarms_v2',
   'Reminder Alarms',
   description: 'Alarms for medication and appointment reminders',
   importance: Importance.max,
@@ -165,7 +165,7 @@ class MyApp extends StatelessWidget {
         builder: (context) {
           final authStateProvider = Provider.of<AuthStateProvider>(
             context,
-            listen: true,
+            listen: false,
           );
 
           // PASS THE INITIAL ROUTE HERE

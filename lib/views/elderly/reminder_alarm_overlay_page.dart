@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../viewmodels/reminder_alarm_viewmodel.dart';
 
 class ReminderAlarmOverlayPage extends StatelessWidget {
@@ -18,387 +20,397 @@ class ReminderAlarmOverlayPage extends StatelessWidget {
   }
 }
 
-class _ReminderAlarmOverlayBody extends StatelessWidget {
+class _ReminderAlarmOverlayBody extends StatefulWidget {
   const _ReminderAlarmOverlayBody({Key? key}) : super(key: key);
+
+  @override
+  State<_ReminderAlarmOverlayBody> createState() =>
+      _ReminderAlarmOverlayBodyState();
+}
+
+class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Setup Pulsing Animation for the Icon
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat(reverse: true);
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ReminderAlarmViewModel>(context);
 
+    // Check if we need to auto-close (from timeout logic)
+    if (viewModel.shouldClose) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) SystemNavigator.pop();
+      });
+    }
+
     return WillPopScope(
       onWillPop: () async => false, // Prevent back button
       child: Scaffold(
-        backgroundColor: Colors.black87,
-        body: viewModel.isLoading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              )
-            : SafeArea(
-                child: Column(
-                  children: [
-                    // Timeout indicator
-                    _buildTimeoutIndicator(viewModel),
-
-                    // Main content
-                    Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          children: [
-                            // Header with icon and title
-                            _buildHeader(viewModel),
-
-                            const SizedBox(height: 32),
-
-                            // Description
-                            if (viewModel.description.isNotEmpty)
-                              _buildDescription(viewModel),
-
-                            // Voice note section
-                            if (viewModel.hasVoiceNote) ...[
-                              const SizedBox(height: 32),
-                              _buildVoiceNoteSection(context, viewModel),
-                            ],
-
-                            // Appointment details
-                            if (viewModel.reminderType == 'appointment') ...[
-                              const SizedBox(height: 32),
-                              _buildAppointmentDetails(viewModel),
-                            ],
-
-                            // Medication list
-                            if (viewModel.reminderType == 'medication' &&
-                                viewModel.medications.isNotEmpty) ...[
-                              const SizedBox(height: 32),
-                              _buildMedicationList(viewModel),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    // Complete button
-                    _buildCompleteButton(context, viewModel),
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            // 1. Background Gradient
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black,
+                    viewModel.typeColor.withOpacity(0.5),
+                    Colors.black,
                   ],
                 ),
               ),
-      ),
-    );
-  }
+            ),
 
-  // Timeout Indicator
-  Widget _buildTimeoutIndicator(ReminderAlarmViewModel viewModel) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.red[900],
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            spreadRadius: 2,
-            blurRadius: 8,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.alarm, color: Colors.white, size: 32),
-          const SizedBox(height: 8),
-          Text(
-            'Auto-dismiss in ${viewModel.formattedTimeRemaining}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Header
-  Widget _buildHeader(ReminderAlarmViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: viewModel.typeColor.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: viewModel.typeColor, width: 3),
-      ),
-      child: Column(
-        children: [
-          // Icon
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: viewModel.typeColor,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(viewModel.typeIcon, size: 64, color: Colors.white),
-          ),
-          const SizedBox(height: 24),
-
-          // Title
-          Text(
-            viewModel.title,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              height: 1.3,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Description
-  Widget _buildDescription(ReminderAlarmViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.grey[800],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey[600]!, width: 2),
-      ),
-      child: Text(
-        viewModel.description,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 24, color: Colors.white, height: 1.5),
-      ),
-    );
-  }
-
-  // Voice Note Section
-  Widget _buildVoiceNoteSection(
-    BuildContext context,
-    ReminderAlarmViewModel viewModel,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.blue[900],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue[600]!, width: 2),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.mic, color: Colors.white, size: 28),
-              const SizedBox(width: 12),
-              const Text(
-                'Voice Message',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: viewModel.isPlayingVoiceNote
-                ? () => viewModel.stopVoiceNote()
-                : () => viewModel.playVoiceNote(),
-            icon: Icon(
-              viewModel.isPlayingVoiceNote ? Icons.stop : Icons.play_arrow,
-              size: 40,
-            ),
-            label: Text(
-              viewModel.isPlayingVoiceNote ? 'Stop' : 'Play',
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: viewModel.isPlayingVoiceNote
-                  ? Colors.red[700]
-                  : Colors.green[700],
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Appointment Details
-  Widget _buildAppointmentDetails(ReminderAlarmViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.blue[900],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.blue[600]!, width: 2),
-      ),
-      child: Column(
-        children: [
-          const Icon(Icons.calendar_today, color: Colors.white, size: 48),
-          const SizedBox(height: 16),
-          const Text(
-            'Appointment Time',
-            style: TextStyle(fontSize: 20, color: Colors.white70),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            viewModel.formatScheduledTime(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Medication List
-  Widget _buildMedicationList(ReminderAlarmViewModel viewModel) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.red[900],
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red[600]!, width: 2),
-      ),
-      child: Column(
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.medication, color: Colors.white, size: 32),
-              SizedBox(width: 12),
-              Text(
-                'Medications',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ...viewModel.medications.map((med) => _buildMedicationItem(med)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMedicationItem(Map<String, dynamic> medication) {
-    String name = medication['name'] ?? 'Unknown';
-    String dosage = medication['dosage'] ?? '';
-    String timing = medication['beforeAfterMeal'] ?? '';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          if (dosage.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Dosage: $dosage',
-              style: const TextStyle(fontSize: 22, color: Colors.white70),
-            ),
-          ],
-          if (timing.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              timing,
-              style: const TextStyle(fontSize: 20, color: Colors.white60),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // Complete Button
-  Widget _buildCompleteButton(
-    BuildContext context,
-    ReminderAlarmViewModel viewModel,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            spreadRadius: 2,
-            blurRadius: 12,
-          ),
-        ],
-      ),
-      child: SizedBox(
-        width: double.infinity,
-        height: 80,
-        child: ElevatedButton(
-          onPressed: viewModel.isCompleting
-              ? null
-              : () async {
-                  bool success = await viewModel.completeReminder();
-                  if (success && context.mounted) {
-                    context.go('/elderly/home');
-                  }
-                },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green[700],
-            foregroundColor: Colors.white,
-            disabledBackgroundColor: Colors.grey[700],
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          child: viewModel.isCompleting
-              ? const SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                    strokeWidth: 4,
-                  ),
-                )
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+            // 2. Main Content
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
                   children: [
-                    Icon(Icons.check_circle, size: 40),
-                    SizedBox(width: 16),
+                    const SizedBox(height: 20),
+
+                    // --- HEADER: Icon, Title, Time ---
+                    ScaleTransition(
+                      scale: _pulseAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: viewModel.typeColor.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: viewModel.typeColor,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: viewModel.typeColor.withOpacity(0.5),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          viewModel.typeIcon,
+                          size: 50,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     Text(
-                      'Complete Reminder',
-                      style: TextStyle(
+                      viewModel.title,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.access_time,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            viewModel.formatScheduledTime(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // --- SCROLLABLE DETAILS SECTION ---
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Description
+                              if (viewModel.description.isNotEmpty) ...[
+                                const Text(
+                                  "NOTE",
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    letterSpacing: 1.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  viewModel.description,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // Voice Note Player
+                              if (viewModel.hasVoiceNote) ...[
+                                Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[900]!.withOpacity(0.5),
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(
+                                      color: Colors.blue[400]!,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      IconButton(
+                                        onPressed: () =>
+                                            viewModel.isPlayingVoiceNote
+                                            ? viewModel.stopVoiceNote()
+                                            : viewModel.playVoiceNote(),
+                                        icon: Icon(
+                                          viewModel.isPlayingVoiceNote
+                                              ? Icons.stop_circle
+                                              : Icons.play_circle_fill,
+                                          size: 48,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              viewModel.isPlayingVoiceNote
+                                                  ? "Playing Message..."
+                                                  : "Play Voice Message",
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const Text(
+                                              "From Caregiver",
+                                              style: TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // Medication Details
+                              if (viewModel.medications.isNotEmpty) ...[
+                                const Text(
+                                  "MEDICATIONS",
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    letterSpacing: 1.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ...viewModel.medications.map((med) {
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black38,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: Colors.white24),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Icon(
+                                          Icons.medication_liquid,
+                                          color: Colors.redAccent,
+                                          size: 28,
+                                        ),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                med['name'] ?? 'Medicine',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 18,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                "Dosage: ${med['dosage'] ?? '-'}",
+                                                style: const TextStyle(
+                                                  color: Colors.white70,
+                                                ),
+                                              ),
+                                              if (med['mealTiming'] != null)
+                                                Text(
+                                                  "Timing: ${med['mealTiming']}",
+                                                  style: TextStyle(
+                                                    color: Colors.orange[300],
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    // --- FOOTER: Actions ---
+                    Row(
+                      children: [
+                        // Dismiss Button (Small)
+                        GestureDetector(
+                          onTap: () {
+                            viewModel.stopVoiceNote();
+                            SystemNavigator.pop();
+                          },
+                          child: Container(
+                            height: 60,
+                            width: 60,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white10,
+                              border: Border.all(color: Colors.white30),
+                            ),
+                            child: const Icon(Icons.close, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+
+                        // Complete Button (Large)
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: viewModel.isCompleting
+                                ? null
+                                : () async {
+                                    bool success = await viewModel
+                                        .completeReminder();
+                                    if (success && mounted) {
+                                      SystemNavigator.pop();
+                                    }
+                                  },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[600],
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                              elevation: 5,
+                            ),
+                            child: viewModel.isCompleting
+                                ? const SizedBox(
+                                    height: 24,
+                                    width: 24,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 3,
+                                    ),
+                                  )
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.check_circle, size: 28),
+                                      SizedBox(width: 12),
+                                      Text(
+                                        "MARK COMPLETED",
+                                        style: TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          letterSpacing: 1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
+              ),
+            ),
+          ],
         ),
       ),
     );
