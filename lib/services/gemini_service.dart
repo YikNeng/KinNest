@@ -5,7 +5,7 @@ import '../models/exercise_model.dart';
 
 class GeminiService {
   // Replace with your actual Gemini API key
-  static const String _apiKey = 'AIzaSyAYY4gN2ioSPb4l9PIdmI5Pnsp3lrq2iK4';
+  static const String _apiKey = 'AIzaSyCIKMoP8Kg2IjasQpw5wKVMyuwzR85LrN8';
 
   // UPDATED: Use correct model name and API version
   static const String _baseUrl = 'https://generativelanguage.googleapis.com';
@@ -167,10 +167,14 @@ IMPORTANT SAFETY CONSTRAINTS:
 - Exercises should be suitable for elderly individuals
 - Consider general age-related limitations
 
-LIMITATIONS:
-- Generate EXACTLY 5 exercises only
-- Each exercise must have at most 4 steps
-- Keep descriptions concise
+
+STRICT CONTENT CONSTRAINTS (Mobile UI Optimization):
+- Generate EXACTLY 5 exercises.
+- MAX 4 steps per exercise.
+- MAX 15 words per step. Start every step with a VERB.
+- MAX 15 words for Description.
+- MAX 20 words for Safety Notes.
+- MAX 30 words for General Advice.
 
 TASK:
 Generate a personalized exercise routine in JSON format ONLY. Do not include any text before or after the JSON.
@@ -182,13 +186,14 @@ JSON STRUCTURE:
   "exercises": [
     {
       "name": "<exercise name>",
-      "description": "<brief description>",
-      "steps": ["<step 1>", "<step 2>", "<step 3>"],
+      "description": "<max 15 words summary>",
+      "steps": ["<step 1 (max 15 words)>", "<step 2>", "<step 3>"],
       "duration_minutes": <duration number>,
-      "safety_notes": "<safety precautions>",
+      "safety_notes": "<max 20 words warning>",
+      "video_url": "<valid youtube url>"
     }
   ],
-  "general_advice": "<general advice for the elderly user>"
+  "general_advice": "<max 20 words advice>"
 }
 
 IMPORTANT: Each exercise MUST include a valid YouTube video URL in the "video_url" field.
@@ -197,6 +202,26 @@ Generate the routine now in valid JSON format only:
 ''';
   }
 
+  // LIMITATIONS:
+  // - Generate EXACTLY 5 exercises only
+  // - Each exercise must have at most 4 steps
+  // - Keep descriptions concise
+
+  // JSON STRUCTURE:
+  // {
+  //   "routine_type": "$durationType",
+  //   "duration_minutes": <total duration number>,
+  //   "exercises": [
+  //     {
+  //       "name": "<exercise name>",
+  //       "description": "<brief description>",
+  //       "steps": ["<step 1>", "<step 2>", "<step 3>"],
+  //       "duration_minutes": <duration number>,
+  //       "safety_notes": "<safety precautions>",
+  //     }
+  //   ],
+  //   "general_advice": "<general advice for the elderly user>"
+  // }
   /// Build health condition section of prompt
   String _buildMedicalConditionsSection(String medicalConditions) {
     // Check if health condition is generic/empty

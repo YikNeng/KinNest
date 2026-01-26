@@ -33,24 +33,10 @@ class _LoginViewBody extends StatelessWidget {
             children: [
               SizedBox(height: size.height * 0.08),
 
-              // App Title
-              Text(
-                'Smart Elderly Care',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue[700],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Welcome Back',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 20, color: Colors.grey[600]),
-              ),
+              // App Header
+              _buildHeader(),
 
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
 
               // Email Field
               _buildLabel('Email'),
@@ -264,5 +250,34 @@ class _LoginViewBody extends StatelessWidget {
     if (!success && context.mounted) {
       // Error message already shown in UI via viewModel.errorMessage
     }
+  }
+
+  Widget _buildHeader() {
+    return Column(
+      children: [
+        Image.asset(
+          'assets/image/logo.png',
+          width: 150,
+          height: 150,
+          fit: BoxFit.cover,
+        ),
+        const SizedBox(height: 16),
+        const Text(
+          'KinNest',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Smart Elderly Care Application',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+        ),
+      ],
+    );
   }
 }

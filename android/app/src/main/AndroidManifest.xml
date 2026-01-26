@@ -30,7 +30,7 @@
     </queries>
     
     <application
-        android:label="latest_fyp"
+        android:label="KinNest"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

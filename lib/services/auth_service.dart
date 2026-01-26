@@ -18,28 +18,41 @@ class AuthService {
     required String password,
   }) async {
     try {
-      // Sign in with Firebase Auth
+      // 1. Sign in with Firebase Auth (This creates the session)
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
 
-      // Fetch user role from Firestore
+      // 2. Fetch user role from Firestore
       String uid = userCredential.user!.uid;
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(uid)
           .get();
 
+      // Check 1: Does the document exist?
       if (!userDoc.exists) {
-        throw Exception('User data not found in database');
+        // CRITICAL: Rollback the auth session so user isn't stuck "logged in"
+        await _auth.signOut();
+        throw Exception('User profile not found in database');
       }
 
-      // Get role from Firestore document
-      String role = userDoc.get('role') as String;
-      return role; // Returns "elderly" or "caregiver"
+      // Check 2: Does the data exist and contain 'role'?
+      // We use .data() and Map access to avoid "Bad state" crashes
+      final data = userDoc.data() as Map<String, dynamic>?;
+
+      if (data == null || !data.containsKey('role')) {
+        // CRITICAL: Rollback the auth session
+        await _auth.signOut();
+        throw Exception('User account is missing role information');
+      }
+
+      // Safe to access now
+      String role = data['role'] as String;
+      return role;
     } on FirebaseAuthException catch (e) {
-      // Handle specific Firebase Auth errors
+      // Auth failed, no session created, no need to sign out
       switch (e.code) {
         case 'user-not-found':
           throw Exception('No user found with this email');
@@ -53,7 +66,16 @@ class AuthService {
           throw Exception('Login failed: ${e.message}');
       }
     } catch (e) {
-      throw Exception('Login error: $e');
+      // If we crashed AFTER auth but BEFORE returning, ensure we clean up
+      if (_auth.currentUser != null) {
+        await _auth.signOut();
+      }
+      // Clean up the error message for the UI
+      String msg = e.toString();
+      if (msg.startsWith('Exception: ')) {
+        msg = msg.substring(11);
+      }
+      throw Exception(msg);
     }
   }
 

@@ -23,6 +23,15 @@ class _ElderlyMusicPageBody extends StatelessWidget {
     final viewModel = Provider.of<MusicViewModel>(context);
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Relaxing Music',
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.purple[700],
+        foregroundColor: Colors.white,
+        elevation: 2,
+      ),
       backgroundColor: Colors.grey[50],
       body: viewModel.isLoading
           ? _buildLoading()
@@ -34,11 +43,6 @@ class _ElderlyMusicPageBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Header
-                    _buildHeader(),
-
-                    const SizedBox(height: 24),
-
                     // Error message
                     if (viewModel.errorMessage != null)
                       _buildErrorMessage(viewModel),
@@ -70,30 +74,6 @@ class _ElderlyMusicPageBody extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Column(
-      children: [
-        Icon(Icons.music_note, size: 80, color: Colors.purple[700]),
-        const SizedBox(height: 16),
-        const Text(
-          'Relaxing Music',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 32,
-            fontWeight: FontWeight.bold,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Listen to calming music for relaxation',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-        ),
-      ],
     );
   }
 

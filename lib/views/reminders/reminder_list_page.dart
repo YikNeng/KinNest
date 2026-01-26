@@ -117,6 +117,7 @@ class _ReminderListPageBody extends StatelessWidget {
   Widget _buildPastHistoryList(
     BuildContext context,
     ReminderViewModel viewModel,
+    String currentGroupId,
   ) {
     // 1. Get Active Overdue Reminders from ViewModel
     // When filterMode is 'past', viewModel.reminders automatically contains
@@ -127,6 +128,7 @@ class _ReminderListPageBody extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('reminder_history')
           .where('status', whereIn: ['completed', 'overdue'])
+          .where('groupId', isEqualTo: currentGroupId)
           .orderBy('scheduledFor', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -280,8 +282,6 @@ class _ReminderListPageBody extends StatelessWidget {
       ),
     );
   }
-
-  // --- Existing Widgets (No Groups, Filters, Selectors, Active List) ---
 
   Widget _buildNoGroupsState(ReminderViewModel viewModel) {
     return Center(

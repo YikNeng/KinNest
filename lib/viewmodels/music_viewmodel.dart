@@ -108,16 +108,11 @@ class MusicViewModel extends ChangeNotifier {
       }
 
       // Case 3: Playing a different track (or first time playing)
-      // Stop current track if any
       if (_currentPlayingIndex != null) {
         await _audioPlayer.stop();
       }
 
-      // Get audio URL from Firebase Storage
-      String audioUrl = await _musicService.getAudioUrl(track.storagePath);
-
-      // Play the new track
-      await _audioPlayer.play(UrlSource(audioUrl));
+      await _audioPlayer.play(AssetSource(track.path));
 
       _currentPlayingIndex = index;
       _isPlaying = true;

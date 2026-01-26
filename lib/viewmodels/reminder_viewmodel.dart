@@ -164,8 +164,12 @@ class ReminderViewModel extends ChangeNotifier {
   void _subscribeToHistory() {
     _historySubscription?.cancel();
 
+    // Safety check: Don't subscribe if no group is selected
+    if (_selectedGroup == null || _selectedGroup!['groupId'] == null) return;
+
     _historySubscription = FirebaseFirestore.instance
         .collection('reminder_history')
+        .where('groupId', isEqualTo: _selectedGroup!['groupId'])
         .where('status', whereIn: ['completed', 'overdue'])
         .snapshots()
         .listen((snapshot) {

@@ -5,8 +5,20 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../viewmodels/exercise_viewmodel.dart';
 import '../../models/exercise_model.dart';
 
-class ElderlyExerciseRoutinePage extends StatelessWidget {
+// 1. Changed to StatefulWidget to track the current step
+class ElderlyExerciseRoutinePage extends StatefulWidget {
   const ElderlyExerciseRoutinePage({Key? key}) : super(key: key);
+
+  @override
+  State<ElderlyExerciseRoutinePage> createState() =>
+      _ElderlyExerciseRoutinePageState();
+}
+
+class _ElderlyExerciseRoutinePageState
+    extends State<ElderlyExerciseRoutinePage> {
+  // Track which exercise is currently visible
+  int _currentExerciseIndex = 0;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +43,7 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
   }
 
   Widget _buildNoRoutine(BuildContext context) {
+    // (Keep existing implementation - no changes needed here)
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -70,7 +83,6 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  elevation: 2,
                 ),
               ),
             ),
@@ -85,42 +97,197 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     ExerciseViewModel viewModel,
   ) {
     ExerciseRoutine routine = viewModel.generatedRoutine!;
+    final exercises = routine.exercises;
+    final currentExercise = exercises[_currentExerciseIndex];
 
     return SingleChildScrollView(
+      controller: _scrollController,
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildSuccessHeader(routine),
-          const SizedBox(height: 28),
-          _buildRoutineSummary(routine),
-          const SizedBox(height: 28),
+          // Only show the header on the first step to save space
+          if (_currentExerciseIndex == 0) ...[
+            _buildSuccessHeader(routine),
+            const SizedBox(height: 28),
+            _buildRoutineSummary(routine),
+            const SizedBox(height: 28),
+          ],
+
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(Icons.list, size: 32, color: Colors.grey[800]),
-              const SizedBox(width: 12),
-              const Text(
-                'Your Exercises',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+              Text(
+                'Exercise ${_currentExerciseIndex + 1} of ${exercises.length}',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey[800],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green[100],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'Step-by-Step',
+                  style: TextStyle(
+                    color: Colors.green[800],
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: (_currentExerciseIndex + 1) / exercises.length,
+              minHeight: 12,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.green[600]!),
+            ),
+          ),
           const SizedBox(height: 20),
-          ...routine.exercises.asMap().entries.map((entry) {
-            int index = entry.key;
-            Exercise exercise = entry.value;
-            return _buildExerciseCard(context, exercise, index + 1);
-          }).toList(),
-          const SizedBox(height: 28),
-          _buildGeneralAdvice(routine),
-          const SizedBox(height: 36),
-          _buildActionButtons(context, viewModel),
+
+          // --- DISPLAY ONLY CURRENT EXERCISE ---
+          // Using AnimatedSwitcher for a smooth transition effect
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: KeyedSubtree(
+              key: ValueKey<int>(_currentExerciseIndex),
+              child: _buildExerciseCard(
+                context,
+                currentExercise,
+                _currentExerciseIndex + 1,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // --- NEW: NAVIGATION BUTTONS ---
+          Row(
+            children: [
+              // PREVIOUS BUTTON
+              if (_currentExerciseIndex > 0)
+                Expanded(
+                  child: SizedBox(
+                    height: 64,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _currentExerciseIndex--;
+                        });
+                        _scrollController.animateTo(
+                          200,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_back, size: 28),
+                      // ... (rest of styling unchanged)
+                      label: const Text(''), // Empty label for back button
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        side: BorderSide(color: Colors.grey[400]!, width: 2),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              else
+                const Spacer(),
+
+              const SizedBox(width: 16),
+
+              // NEXT BUTTON (Modified Logic)
+              // Only show this button if we are NOT on the last exercise
+              if (_currentExerciseIndex < exercises.length - 1)
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 64,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _currentExerciseIndex++;
+                        });
+                        _scrollController.animateTo(
+                          200,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_forward, size: 28),
+                      label: const Text(
+                        'Next Exercise',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green[700],
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        elevation: 4,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                // Adds empty space so the Back button stays the same size
+                const Spacer(flex: 2),
+            ],
+          ),
+
+          const SizedBox(height: 40),
+
+          // Show General Advice & Actions only at the end
+          if (_currentExerciseIndex == exercises.length - 1) ...[
+            _buildGeneralAdvice(routine),
+            const SizedBox(height: 36),
+            _buildActionButtons(context, viewModel),
+          ] else ...[
+            // Small "Actions" shortcut if they need to exit early
+            Center(
+              child: TextButton(
+                onPressed: () {
+                  // Scroll to bottom to show actions
+                  _scrollController.animateTo(
+                    _scrollController.position.maxScrollExtent,
+                    duration: const Duration(seconds: 1),
+                    curve: Curves.easeOut,
+                  );
+                  // Or just set index to end
+                  setState(() => _currentExerciseIndex = exercises.length - 1);
+                },
+                child: Text(
+                  "Skip to Summary & Exit",
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 
+  // ... [Keep _buildSuccessHeader, _buildRoutineSummary, _buildSummaryRow exactly the same] ...
   Widget _buildSuccessHeader(ExerciseRoutine routine) {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -267,13 +434,14 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     );
   }
 
+  // ... [Keep _buildExerciseCard exactly the same] ...
   Widget _buildExerciseCard(
     BuildContext context,
     Exercise exercise,
     int number,
   ) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      // Removed margin bottom since we are paging
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -485,37 +653,37 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: Colors.orange[300]!, width: 2),
               ),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.warning_amber,
-                    color: Colors.orange[700],
-                    size: 32,
+                  // ROW: Icon + Title
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        color: Colors.orange[700],
+                        size: 32,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Safety First!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange[900],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Safety First!',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange[900],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          exercise.safetyNotes,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.orange[900],
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
+
+                  const SizedBox(height: 12), // Spacing between header and text
+                  // COLUMN ITEM: Safety Note Context
+                  Text(
+                    exercise.safetyNotes,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.orange[900],
+                      height: 1.5,
                     ),
                   ),
                 ],
@@ -527,15 +695,13 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     );
   }
 
-  // Launch YouTube video
+  // ... [Keep _launchVideo, _buildGeneralAdvice, and _buildActionButtons exactly the same] ...
   Future<void> _launchVideo(BuildContext context, String url) async {
     try {
       final Uri uri = Uri.parse(url);
-
-      // Try to launch
       bool launched = await launchUrl(
         uri,
-        mode: LaunchMode.externalApplication, // Opens in YouTube app or browser
+        mode: LaunchMode.externalApplication,
       );
 
       if (!launched && context.mounted) {
@@ -643,28 +809,58 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // SizedBox(
-        //   height: 64,
-        //   child: OutlinedButton.icon(
-        //     onPressed: () {
-        //       // Use context.go to refresh the current tab with the skip parameter
-        //       context.go('/elderly/exercise?skipAuto=true');
-        //     },
-        //     icon: const Icon(Icons.settings, size: 28),
-        //     label: const Text(
-        //       'Change Preferences',
-        //       style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        //     ),
-        //     style: OutlinedButton.styleFrom(
-        //       foregroundColor: Colors.grey[700],
-        //       side: BorderSide(color: Colors.grey[400]!, width: 2),
-        //       shape: RoundedRectangleBorder(
-        //         borderRadius: BorderRadius.circular(16),
-        //       ),
-        //     ),
-        //   ),
-        // ),
+        // DELETE BUTTON
+        SizedBox(
+          height: 64,
+          child: ElevatedButton.icon(
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Delete Routine?'),
+                  content: const Text(
+                    'This will permanently remove your current routine.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                final success = await viewModel.deleteRoutine();
+                if (success && context.mounted) {
+                  context.go('/elderly/exercise'); // Ensure this route exists
+                }
+              }
+            },
+            icon: const Icon(Icons.delete_outline, size: 28),
+            label: const Text(
+              'Delete Routine',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red[700],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
         const SizedBox(height: 16),
+
+        // REGENERATE BUTTON
         SizedBox(
           height: 64,
           child: ElevatedButton.icon(
@@ -687,25 +883,8 @@ class ElderlyExerciseRoutinePage extends StatelessWidget {
             ),
           ),
         ),
+
         const SizedBox(height: 16),
-        SizedBox(
-          height: 64,
-          child: OutlinedButton.icon(
-            onPressed: () => context.go('/elderly/home'),
-            icon: const Icon(Icons.home, size: 28),
-            label: const Text(
-              'Back to Home',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.green[700],
-              side: BorderSide(color: Colors.green[700]!, width: 2),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ),
       ],
     );
   }

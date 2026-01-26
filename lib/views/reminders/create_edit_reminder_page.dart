@@ -669,11 +669,14 @@ class _CreateEditReminderPageBody extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () => _confirmDeleteVoiceNote(context, viewModel),
-                icon: Icon(Icons.delete_outline, color: Colors.red[700]),
-                iconSize: 26,
-              ),
+
+              if (!viewModel.isCaregiver) ...[
+                IconButton(
+                  onPressed: () => _confirmDeleteVoiceNote(context, viewModel),
+                  icon: Icon(Icons.delete_outline, color: Colors.red[700]),
+                  iconSize: 26,
+                ),
+              ],
             ],
           ),
 
