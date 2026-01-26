@@ -200,7 +200,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
 
       // 1. Prepare Data for Service
       String title = _reminderData?['title'] ?? 'Untitled';
-
+      String groupId = _reminderData?['groupId'] ?? '';
       // Robust Date Parsing
       DateTime currentDueDate;
       if (_reminderData?['scheduledTime'] is Timestamp) {
@@ -222,6 +222,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
         currentDueDate: currentDueDate,
         repeatInterval: repeatInterval,
         repeatDays: repeatDays,
+        groupId: groupId,
       );
 
       // 3. Cancel the Alarm Notification

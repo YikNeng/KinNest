@@ -1116,6 +1116,7 @@ class ReminderService {
   Future<void> completeRecurringTask({
     required String reminderId,
     required String title,
+    required String groupId,
     required DateTime currentDueDate,
     required String repeatInterval, // mapped from 'repeatType'
     List<int>? repeatDays,
@@ -1144,6 +1145,7 @@ class ReminderService {
     batch.set(historyRef, {
       'originalReminderId': reminderId,
       'taskTitle': title,
+      'groupId': groupId,
       'completedAt': FieldValue.serverTimestamp(),
       'scheduledFor': currentDueDate,
       'status': status,

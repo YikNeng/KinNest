@@ -276,6 +276,7 @@ class ReminderViewModel extends ChangeNotifier {
 
       if (reminder.isEmpty) return false;
 
+      String groupId = reminder['groupId'];
       String title = reminder['title'] ?? 'Untitled';
       DateTime currentDueDate = (reminder['scheduledTime'] as Timestamp)
           .toDate();
@@ -287,6 +288,7 @@ class ReminderViewModel extends ChangeNotifier {
       await _reminderService.completeRecurringTask(
         reminderId: reminderId,
         title: title,
+        groupId: groupId,
         currentDueDate: currentDueDate,
         repeatInterval: repeatInterval,
         repeatDays: repeatDays,

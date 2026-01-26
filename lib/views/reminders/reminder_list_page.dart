@@ -96,7 +96,8 @@ class _ReminderListPageBody extends StatelessWidget {
                 ? _buildPastHistoryList(
                     context,
                     viewModel,
-                  ) // <--- NEW HISTORY WIDGET
+                    viewModel.selectedGroup!['groupId'],
+                  )
                 : (viewModel.isLoading
                       ? Center(
                           child: CircularProgressIndicator(
