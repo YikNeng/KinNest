@@ -45,7 +45,7 @@ class GroupDetailViewModel extends ChangeNotifier {
     initializeGroupStream();
   }
 
-  /// Initialize group details stream (real-time updates)
+  /// Initialize group details stream
   void initializeGroupStream() {
     _isLoading = true;
 
@@ -102,7 +102,6 @@ class GroupDetailViewModel extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      // Don't fail the whole page if reminders fail to load
       if (!_isDisposed) {
         _upcomingReminders = [];
         _isLoading = false;
@@ -133,7 +132,7 @@ class GroupDetailViewModel extends ChangeNotifier {
     }
   }
 
-  /// Get member count (excluding admin)
+  /// Get member count
   int get memberCount => members.length;
 
   /// Get member role label

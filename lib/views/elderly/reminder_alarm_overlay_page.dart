@@ -57,7 +57,6 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
   Widget build(BuildContext context) {
     final viewModel = Provider.of<ReminderAlarmViewModel>(context);
 
-    // Check if we need to auto-close (from timeout logic)
     if (viewModel.shouldClose) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) SystemNavigator.pop();
@@ -65,12 +64,12 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
     }
 
     return WillPopScope(
-      onWillPop: () async => false, // Prevent back button
+      onWillPop: () async => false,
       child: Scaffold(
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            // 1. Background Gradient
+            // Background Gradient
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -85,7 +84,7 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
               ),
             ),
 
-            // 2. Main Content
+            // Main Content
             SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -93,7 +92,7 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
                   children: [
                     const SizedBox(height: 20),
 
-                    // --- HEADER: Icon, Title, Time ---
+                    // Header
                     ScaleTransition(
                       scale: _pulseAnimation,
                       child: Container(
@@ -163,7 +162,7 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
 
                     const SizedBox(height: 20),
 
-                    // --- SCROLLABLE DETAILS SECTION ---
+                    // Detail Section
                     Expanded(
                       child: Container(
                         width: double.infinity,
@@ -334,10 +333,9 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
 
                     const SizedBox(height: 20),
 
-                    // --- FOOTER: Actions ---
                     Row(
                       children: [
-                        // Dismiss Button (Small)
+                        // Dismiss Button
                         GestureDetector(
                           onTap: () {
                             viewModel.stopVoiceNote();
@@ -356,7 +354,7 @@ class _ReminderAlarmOverlayBodyState extends State<_ReminderAlarmOverlayBody>
                         ),
                         const SizedBox(width: 16),
 
-                        // Complete Button (Large)
+                        // Complete Button
                         Expanded(
                           child: ElevatedButton(
                             onPressed: viewModel.isCompleting

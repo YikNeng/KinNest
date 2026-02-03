@@ -1,4 +1,4 @@
-import 'dart:async'; // Import this
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,7 +11,6 @@ class ExerciseViewModel extends ChangeNotifier {
   final YouTubeService _youtubeService = YouTubeService();
   final String _currentUserId = FirebaseAuth.instance.currentUser!.uid;
 
-  // STREAM SUBSCRIPTION (This is the key fix)
   StreamSubscription<DocumentSnapshot>? _userProfileSubscription;
 
   // User profile data
@@ -55,12 +54,11 @@ class ExerciseViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - LISTEN to real-time updates
+  /// Initialize
   void _initialize() {
     _isLoading = true;
     notifyListeners();
 
-    // FIX: Use snapshots() instead of get() to listen for changes
     _userProfileSubscription = FirebaseFirestore.instance
         .collection('users')
         .doc(_currentUserId)
@@ -71,20 +69,20 @@ class ExerciseViewModel extends ChangeNotifier {
               Map<String, dynamic> userData =
                   snapshot.data() as Map<String, dynamic>;
 
-              // 1. Update Age
+              // Update Age
               _userAge = userData['age'] as int?;
 
-              // 2. Update Medical Conditions (handle empty/null)
+              // Update Medical Conditions
               String? med = userData['medicalConditions'] as String?;
               if (med != null && med.trim().isEmpty) med = null;
               _userMedicalConditions = med;
 
-              // 3. Update Mobility (handle empty/null)
+              // Update Mobility
               String? mob = userData['mobilityLevel'] as String?;
               if (mob != null && mob.trim().isEmpty) mob = null;
               _userMobilityLevel = mob;
 
-              // 4. Notify UI immediately
+              // Notify UI immediately
               _isLoading = false;
               notifyListeners();
             }
@@ -100,7 +98,7 @@ class ExerciseViewModel extends ChangeNotifier {
     _loadSavedRoutine();
   }
 
-  /// NEW: Load saved routine from Firestore
+  /// Load saved routine from Firestore
   Future<void> _loadSavedRoutine() async {
     try {
       ExerciseRoutine? savedRoutine = await _geminiService
@@ -150,10 +148,7 @@ class ExerciseViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // NOTE: We don't need _refreshUserProfile() anymore because
-      // the stream above keeps our variables fresh automatically!
-
-      // Step 1: Generate routine from Gemini
+      // Generate routine from Gemini
       ExerciseRoutine routine = await _geminiService.generateExerciseRoutine(
         age: _userAge!,
         medicalConditions:
@@ -163,7 +158,7 @@ class ExerciseViewModel extends ChangeNotifier {
         intensity: _intensity,
       );
 
-      // Step 2: Search YouTube (Video logic remains same)
+      // Search YouTube
       List<Exercise> exercisesWithVideos = [];
       for (int i = 0; i < routine.exercises.length; i++) {
         Exercise exercise = routine.exercises[i];
@@ -184,7 +179,7 @@ class ExerciseViewModel extends ChangeNotifier {
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      // Step 3: Create Final Routine
+      // Create Final Routine
       _generatedRoutine = ExerciseRoutine(
         routineType: routine.routineType,
         durationMinutes: routine.durationMinutes,
@@ -196,7 +191,7 @@ class ExerciseViewModel extends ChangeNotifier {
       _isGenerating = false;
       notifyListeners();
 
-      // Step 4: Auto-save
+      // Auto-save
       await _saveRoutineInBackground();
 
       return true;
@@ -253,7 +248,7 @@ class ExerciseViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    // CRITICAL: Cancel the listener when app closes/logs out
+    // Cancel the listener when app closes/logs out
     _userProfileSubscription?.cancel();
     super.dispose();
   }

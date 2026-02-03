@@ -56,7 +56,7 @@ class _ElderlyProfilePageBody extends StatelessWidget {
       );
     }
 
-    // Error state (no profile loaded)
+    // Error state
     if (viewModel.errorMessage != null && viewModel.profile == null) {
       return Center(
         child: Padding(
@@ -590,7 +590,6 @@ class _ElderlyProfilePageBody extends StatelessWidget {
   }
 
   // Edit Health Info Dialog
-  // Edit Health Info Dialog
   void _showEditDialog(
     BuildContext context,
     ElderlyProfileViewModel viewModel,
@@ -697,7 +696,7 @@ class _ElderlyProfilePageBody extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
 
-                // Mobility Level (Dropdown) - FIXED: Use StatefulBuilder
+                // Mobility Level
                 StatefulBuilder(
                   builder: (context, setState) {
                     return DropdownButtonFormField<String>(
@@ -731,7 +730,7 @@ class _ElderlyProfilePageBody extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                // Buttons - FIXED: Use ListenableBuilder
+                // Buttons
                 ListenableBuilder(
                   listenable: viewModel,
                   builder: (context, child) {

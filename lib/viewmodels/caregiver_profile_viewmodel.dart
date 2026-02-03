@@ -57,28 +57,21 @@ class CaregiverProfileViewModel extends ChangeNotifier {
   /// Validate Malaysia phone number
   String? validatePhoneNumber(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return null; // Phone is optional
+      return null;
     }
 
-    // Remove spaces, dashes, and parentheses
+    // Remove spaces, dashes and parentheses
     String cleaned = value.replaceAll(RegExp(r'[\s\-\(\)]'), '');
 
-    // Malaysia phone number validation
-    // Mobile: 01X-XXXX XXXX (10-11 digits without country code)
-    // With country code: +60 1X-XXXX XXXX
-
     if (cleaned.startsWith('+60')) {
-      // With country code: +60 must be followed by 9-11 digits
       String withoutCode = cleaned.substring(3);
       if (!RegExp(r'^\d{9,11}$').hasMatch(withoutCode)) {
         return 'Invalid Malaysian phone number format';
       }
-      // Check if mobile starts with 1
       if (!withoutCode.startsWith('1')) {
         return 'Malaysian mobile numbers must start with 01';
       }
     } else if (cleaned.startsWith('60')) {
-      // Without + but has 60: must be followed by 9-11 digits
       String withoutCode = cleaned.substring(2);
       if (!RegExp(r'^\d{9,11}$').hasMatch(withoutCode)) {
         return 'Invalid Malaysian phone number format';
@@ -87,7 +80,6 @@ class CaregiverProfileViewModel extends ChangeNotifier {
         return 'Malaysian mobile numbers must start with 01';
       }
     } else if (cleaned.startsWith('0')) {
-      // Local format: must be 10-11 digits starting with 01
       if (!RegExp(r'^0\d{9,10}$').hasMatch(cleaned)) {
         return 'Phone number must be 10-11 digits';
       }
@@ -110,34 +102,28 @@ class CaregiverProfileViewModel extends ChangeNotifier {
 
     if (cleaned.isEmpty) return phoneNumber;
 
-    // Format Malaysia phone numbers
     if (cleaned.startsWith('+60')) {
-      // International format: +60 1X-XXXX XXXX
       String withoutCode = cleaned.substring(3);
       if (withoutCode.length >= 9) {
-        String prefix = withoutCode.substring(0, 2); // 01X
+        String prefix = withoutCode.substring(0, 2);
         String middle = withoutCode.substring(2, withoutCode.length - 4);
         String last = withoutCode.substring(withoutCode.length - 4);
         return '+60 $prefix-$middle $last';
       }
       return cleaned;
     } else if (cleaned.startsWith('60')) {
-      // Without +: 60 1X-XXXX XXXX
       String withoutCode = cleaned.substring(2);
       if (withoutCode.length >= 9) {
-        String prefix = withoutCode.substring(0, 2); // 01X
+        String prefix = withoutCode.substring(0, 2);
         String middle = withoutCode.substring(2, withoutCode.length - 4);
         String last = withoutCode.substring(withoutCode.length - 4);
         return '+60 $prefix-$middle $last';
       }
       return '+' + cleaned;
     } else if (cleaned.startsWith('0')) {
-      // Local format: 01X-XXXX XXXX
       if (cleaned.length == 10) {
-        // 10 digits: 01X-XXX XXXX
         return '${cleaned.substring(0, 3)}-${cleaned.substring(3, 6)} ${cleaned.substring(6)}';
       } else if (cleaned.length == 11) {
-        // 11 digits: 01X-XXXX XXXX
         return '${cleaned.substring(0, 3)}-${cleaned.substring(3, 7)} ${cleaned.substring(7)}';
       }
       return cleaned;
@@ -158,7 +144,7 @@ class CaregiverProfileViewModel extends ChangeNotifier {
         '• International: +60 1X-XXXX XXXX';
   }
 
-  /// Initialize - fetch user data and groups
+  /// Initialize to fetch user data and groups
   Future<void> _initialize() async {
     _isLoading = true;
     notifyListeners();

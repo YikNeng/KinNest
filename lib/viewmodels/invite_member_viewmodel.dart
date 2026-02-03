@@ -14,7 +14,7 @@ class InviteMemberViewModel extends ChangeNotifier {
   final TextEditingController emailController = TextEditingController();
 
   // State variables
-  String? _selectedRole; // "elderly" or "caregiver"
+  String? _selectedRole;
   bool _isLoading = false;
   bool _isCheckingPermission = true;
   bool _isAdmin = false;
@@ -85,7 +85,6 @@ class InviteMemberViewModel extends ChangeNotifier {
   }
 
   /// Send invitation
-  /// Returns true on success, false on failure
   Future<bool> sendInvitation() async {
     // Clear previous errors
     _errorMessage = null;

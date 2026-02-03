@@ -34,7 +34,7 @@ class GroupSettingsViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - fetch group data
+  /// Initialize to fetch group data
   Future<void> _initialize() async {
     _isFetchingData = true;
     notifyListeners();

@@ -5,13 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
 import '../services/alarm_service.dart';
-import '../services/reminder_service.dart'; //
+import '../services/reminder_service.dart';
 
 class ReminderAlarmViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final AlarmService _alarmService = AlarmService();
-  final ReminderService _reminderService =
-      ReminderService(); // Use the shared service
+  final ReminderService _reminderService = ReminderService();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   final String reminderId;
@@ -22,7 +21,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
   bool _isLoading = true;
   bool _isPlayingVoiceNote = false;
   bool _isCompleting = false;
-  int _secondsRemaining = 120; // 2 minutes auto-dismiss
+  int _secondsRemaining = 120;
   Timer? _timeoutTimer;
   Timer? _countdownTimer;
   bool _isDisposed = false;
@@ -45,7 +44,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
   // Reminder details
   String get title => _reminderData?['title'] ?? 'Reminder';
   String get description => _reminderData?['description'] ?? '';
-  String get reminderType => _reminderData?['type'] ?? 'normal';
+  String get reminderType => _reminderData?['type'] ?? 'general';
   String? get voiceNoteUrl => _reminderData?['voiceNoteUrl'];
   bool get hasVoiceNote => voiceNoteUrl != null && voiceNoteUrl!.isNotEmpty;
   Timestamp? get scheduledTime => _reminderData?['scheduledTime'];
@@ -119,10 +118,8 @@ class ReminderAlarmViewModel extends ChangeNotifier {
   }
 
   Future<void> _loadMedications() async {
-    // ... (Keep existing medication loading logic) ...
     if (_isDisposed) return;
     try {
-      // Logic from previous version...
       if (_reminderData?['typeSpecificData'] != null &&
           _reminderData!['typeSpecificData']['medications'] != null) {
         _medications = List<Map<String, dynamic>>.from(
@@ -133,8 +130,6 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       print('Error loading medications: $e');
     }
   }
-
-  // --- TIMER LOGIC ---
 
   void _startAutoTimeout() {
     // Countdown for UI
@@ -167,27 +162,24 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       await _stopVibration();
       await stopVoiceNote();
 
-      // MARK AS OVERDUE IN DATABASE
-      // This ensures it shows up as 'Overdue' in the history lists
+      // mark as overdue in Firestore
       await _firestore.collection('reminders').doc(reminderId).update({
         'status': 'overdue',
-        'isCompleted': false, // Explicitly ensure it's not done
+        'isCompleted': false,
         'overdueAt': FieldValue.serverTimestamp(),
       });
 
-      // Cancel the notification/alarm so it stops ringing
+      // Cancel the alarm so it stops ringing
       await _alarmService.cancelReminderAlarm(reminderId);
 
       _shouldClose = true;
-      notifyListeners(); // Tell the View to rebuild/check this flag
+      notifyListeners();
     } catch (e) {
       print('Error handling timeout: $e');
     }
   }
 
-  // --- ACTION LOGIC ---
-
-  /// Complete reminder using the CENTRAL SERVICE LOGIC
+  /// Complete reminder
   Future<bool> completeReminder() async {
     if (_isDisposed || _isCompleting) return false;
 
@@ -198,10 +190,9 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       await _stopVibration();
       if (_isPlayingVoiceNote) await stopVoiceNote();
 
-      // 1. Prepare Data for Service
+      // Prepare Data for Service
       String title = _reminderData?['title'] ?? 'Untitled';
       String groupId = _reminderData?['groupId'] ?? '';
-      // Robust Date Parsing
       DateTime currentDueDate;
       if (_reminderData?['scheduledTime'] is Timestamp) {
         currentDueDate = (_reminderData?['scheduledTime'] as Timestamp)
@@ -214,8 +205,7 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       List<dynamic>? rawDays = _reminderData?['repeatDays'];
       List<int>? repeatDays = rawDays != null ? List<int>.from(rawDays) : null;
 
-      // 2. CALL THE SERVICE (Crucial Fix: Matches ReminderViewModel logic)
-      // This handles: marking as done, moving to history, AND creating the next recurring task
+      // Call reminder service
       await _reminderService.completeRecurringTask(
         reminderId: reminderId,
         title: title,
@@ -225,10 +215,10 @@ class ReminderAlarmViewModel extends ChangeNotifier {
         groupId: groupId,
       );
 
-      // 3. Cancel the Alarm Notification
+      // Cancel the Alarm Notification
       await _alarmService.cancelReminderAlarm(reminderId);
 
-      // 4. Cleanup Timers
+      // Cleanup Timers
       _timeoutTimer?.cancel();
       _countdownTimer?.cancel();
 
@@ -247,8 +237,6 @@ class ReminderAlarmViewModel extends ChangeNotifier {
       return false;
     }
   }
-
-  // --- AUDIO & VIBRATION ---
 
   Future<void> _startVibration() async {
     try {

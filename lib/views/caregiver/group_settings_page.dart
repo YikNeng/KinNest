@@ -61,7 +61,7 @@ class _GroupSettingsPageBody extends StatelessWidget {
       );
     }
 
-    // Error state (permission denied or not found)
+    // Error state
     if (viewModel.errorMessage != null && !viewModel.isAdmin) {
       return Center(
         child: Padding(
@@ -501,7 +501,7 @@ class _GroupSettingsPageBody extends StatelessWidget {
 
       await Future.delayed(const Duration(milliseconds: 500));
       if (context.mounted) {
-        context.pop(); // Go back to Group Detail Page
+        context.pop();
       }
     }
   }
@@ -511,7 +511,6 @@ class _GroupSettingsPageBody extends StatelessWidget {
     BuildContext context,
     GroupSettingsViewModel viewModel,
   ) {
-    // TODO: Navigate to member management page
     context.push('/caregiver/groups/${viewModel.groupId}/members');
   }
 
@@ -630,7 +629,7 @@ class _GroupSettingsPageBody extends StatelessWidget {
 
         await Future.delayed(const Duration(milliseconds: 500));
         if (context.mounted) {
-          // Navigate back to group list (pop until we reach it)
+          // Navigate back to group list
           context.go('/caregiver/groups');
         }
       } else if (viewModel.errorMessage != null && context.mounted) {

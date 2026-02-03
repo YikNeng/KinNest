@@ -69,7 +69,7 @@ class _ElderlyHomePageBody extends StatelessWidget {
                 // Pending Invitations Card
                 _buildInvitationsCard(context),
 
-                const SizedBox(height: 20), // Extra space at bottom for nav bar
+                const SizedBox(height: 20),
               ]),
             ),
           ),
@@ -198,7 +198,7 @@ class _ElderlyHomePageBody extends StatelessWidget {
   ) {
     Map<String, dynamic> reminder = viewModel.nearestReminder!;
     String title = reminder['title'] ?? 'Reminder';
-    String type = reminder['type'] ?? 'normal';
+    String type = reminder['type'] ?? 'general';
     String description = reminder['description'] ?? '';
     IconData icon = viewModel.getReminderIcon(type);
     Color color = viewModel.getReminderColor(type);
@@ -228,7 +228,7 @@ class _ElderlyHomePageBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row: Type icon + Time until
+            // Header
             Row(
               children: [
                 // Type icon
@@ -280,7 +280,7 @@ class _ElderlyHomePageBody extends StatelessWidget {
               ),
             ),
 
-            // Description (if available)
+            // Description
             if (description.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(

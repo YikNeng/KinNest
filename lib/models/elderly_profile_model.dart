@@ -52,7 +52,7 @@ class ElderlyProfile {
     );
   }
 
-  /// Convert to Firestore document (for updates)
+  /// Convert to Firestore document
   Map<String, dynamic> toFirestore() {
     return {
       'age': age,
@@ -64,7 +64,7 @@ class ElderlyProfile {
     };
   }
 
-  /// Helper to safely convert to double
+  /// Helper to convert to double
   static double? _toDouble(dynamic value) {
     if (value == null) return null;
     if (value is double) return value;
@@ -117,7 +117,7 @@ class ElderlyProfile {
   String get displayMedicalConditions =>
       medicalConditions?.isEmpty ?? true ? 'Not specified' : medicalConditions!;
 
-  /// Display mobility level (with legacy value handling)
+  /// Display mobility level
   String get displayMobilityLevel {
     if (mobilityLevel == null || mobilityLevel!.isEmpty) {
       return 'Not specified';
@@ -138,7 +138,7 @@ class ElderlyProfile {
       return legacyMapping[normalizedValue]!;
     }
 
-    // Return as-is if already in correct format
+    // Return if already in correct format
     return mobilityLevel!;
   }
 

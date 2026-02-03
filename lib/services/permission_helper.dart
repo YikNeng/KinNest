@@ -6,7 +6,7 @@ Future<void> requestAlarmPermissions(BuildContext context) async {
   // Request notification permission
   var notificationStatus = await Permission.notification.request();
 
-  // Request exact alarm permission (Android 12+)
+  // Request exact alarm permission
   var alarmStatus = await Permission.scheduleExactAlarm.request();
 
   if (notificationStatus.isDenied || alarmStatus.isDenied) {

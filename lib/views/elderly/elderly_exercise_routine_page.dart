@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../viewmodels/exercise_viewmodel.dart';
 import '../../models/exercise_model.dart';
 
-// 1. Changed to StatefulWidget to track the current step
 class ElderlyExerciseRoutinePage extends StatefulWidget {
   const ElderlyExerciseRoutinePage({Key? key}) : super(key: key);
 
@@ -43,7 +42,6 @@ class _ElderlyExerciseRoutinePageState
   }
 
   Widget _buildNoRoutine(BuildContext context) {
-    // (Keep existing implementation - no changes needed here)
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -106,7 +104,6 @@ class _ElderlyExerciseRoutinePageState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Only show the header on the first step to save space
           if (_currentExerciseIndex == 0) ...[
             _buildSuccessHeader(routine),
             const SizedBox(height: 28),
@@ -156,8 +153,6 @@ class _ElderlyExerciseRoutinePageState
           ),
           const SizedBox(height: 20),
 
-          // --- DISPLAY ONLY CURRENT EXERCISE ---
-          // Using AnimatedSwitcher for a smooth transition effect
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 300),
             child: KeyedSubtree(
@@ -172,10 +167,10 @@ class _ElderlyExerciseRoutinePageState
 
           const SizedBox(height: 24),
 
-          // --- NEW: NAVIGATION BUTTONS ---
+          // Navigation buttons
           Row(
             children: [
-              // PREVIOUS BUTTON
+              // Previous button
               if (_currentExerciseIndex > 0)
                 Expanded(
                   child: SizedBox(
@@ -192,8 +187,7 @@ class _ElderlyExerciseRoutinePageState
                         );
                       },
                       icon: const Icon(Icons.arrow_back, size: 28),
-                      // ... (rest of styling unchanged)
-                      label: const Text(''), // Empty label for back button
+                      label: const Text(''),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.grey[700],
                         side: BorderSide(color: Colors.grey[400]!, width: 2),
@@ -209,8 +203,7 @@ class _ElderlyExerciseRoutinePageState
 
               const SizedBox(width: 16),
 
-              // NEXT BUTTON (Modified Logic)
-              // Only show this button if we are NOT on the last exercise
+              // Next button
               if (_currentExerciseIndex < exercises.length - 1)
                 Expanded(
                   flex: 2,
@@ -247,7 +240,6 @@ class _ElderlyExerciseRoutinePageState
                   ),
                 )
               else
-                // Adds empty space so the Back button stays the same size
                 const Spacer(flex: 2),
             ],
           ),
@@ -260,17 +252,14 @@ class _ElderlyExerciseRoutinePageState
             const SizedBox(height: 36),
             _buildActionButtons(context, viewModel),
           ] else ...[
-            // Small "Actions" shortcut if they need to exit early
             Center(
               child: TextButton(
                 onPressed: () {
-                  // Scroll to bottom to show actions
                   _scrollController.animateTo(
                     _scrollController.position.maxScrollExtent,
                     duration: const Duration(seconds: 1),
                     curve: Curves.easeOut,
                   );
-                  // Or just set index to end
                   setState(() => _currentExerciseIndex = exercises.length - 1);
                 },
                 child: Text(
@@ -287,7 +276,6 @@ class _ElderlyExerciseRoutinePageState
     );
   }
 
-  // ... [Keep _buildSuccessHeader, _buildRoutineSummary, _buildSummaryRow exactly the same] ...
   Widget _buildSuccessHeader(ExerciseRoutine routine) {
     return Container(
       padding: const EdgeInsets.all(28),
@@ -434,14 +422,12 @@ class _ElderlyExerciseRoutinePageState
     );
   }
 
-  // ... [Keep _buildExerciseCard exactly the same] ...
   Widget _buildExerciseCard(
     BuildContext context,
     Exercise exercise,
     int number,
   ) {
     return Container(
-      // Removed margin bottom since we are paging
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -656,7 +642,7 @@ class _ElderlyExerciseRoutinePageState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ROW: Icon + Title
+                  // Icon + Title
                   Row(
                     children: [
                       Icon(
@@ -676,8 +662,8 @@ class _ElderlyExerciseRoutinePageState
                     ],
                   ),
 
-                  const SizedBox(height: 12), // Spacing between header and text
-                  // COLUMN ITEM: Safety Note Context
+                  const SizedBox(height: 12),
+                  // Safety Note Context
                   Text(
                     exercise.safetyNotes,
                     style: TextStyle(
@@ -695,7 +681,6 @@ class _ElderlyExerciseRoutinePageState
     );
   }
 
-  // ... [Keep _launchVideo, _buildGeneralAdvice, and _buildActionButtons exactly the same] ...
   Future<void> _launchVideo(BuildContext context, String url) async {
     try {
       final Uri uri = Uri.parse(url);
@@ -809,7 +794,7 @@ class _ElderlyExerciseRoutinePageState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // DELETE BUTTON
+        // Delete button
         SizedBox(
           height: 64,
           child: ElevatedButton.icon(
@@ -840,7 +825,7 @@ class _ElderlyExerciseRoutinePageState
               if (confirm == true) {
                 final success = await viewModel.deleteRoutine();
                 if (success && context.mounted) {
-                  context.go('/elderly/exercise'); // Ensure this route exists
+                  context.go('/elderly/exercise');
                 }
               }
             },
@@ -860,7 +845,7 @@ class _ElderlyExerciseRoutinePageState
         ),
         const SizedBox(height: 16),
 
-        // REGENERATE BUTTON
+        // Regenerate button
         SizedBox(
           height: 64,
           child: ElevatedButton.icon(

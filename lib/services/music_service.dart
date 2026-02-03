@@ -1,15 +1,13 @@
 import '../models/music_track_model.dart';
 
 class MusicService {
-  /// Fetch all relaxing music tracks from Local Assets
-  /// We verify this by returning a hardcoded list of what is in your assets folder.
+  /// Fetch all relaxing music tracks
   Future<List<MusicTrack>> fetchMusicTracks() async {
     try {
       return [
         MusicTrack(
           title: "Ambient Music",
-          path:
-              "music/ambient_music.mp3", // MUST match filename in assets/music/
+          path: "music/ambient_music.mp3",
           duration: "9:18",
         ),
         MusicTrack(

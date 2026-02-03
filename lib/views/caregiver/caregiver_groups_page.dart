@@ -132,26 +132,6 @@ class _CaregiverGroupsPageBody extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 16, color: Colors.grey[600]),
               ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () => _navigateToCreateGroup(context),
-                icon: const Icon(Icons.add, size: 24),
-                label: const Text(
-                  'Create Group',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue[700],
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
             ],
           ),
         ),

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 /// Manages bottom navigation tab state
-/// Used by both Elderly and Caregiver scaffolds
 class BottomNavViewModel extends ChangeNotifier {
   int _currentIndex = 0;
 
@@ -16,7 +15,7 @@ class BottomNavViewModel extends ChangeNotifier {
     }
   }
 
-  /// Reset to first tab (useful when logging out or switching contexts)
+  /// Reset to first tab
   void reset() {
     _currentIndex = 0;
     notifyListeners();

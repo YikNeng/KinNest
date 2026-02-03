@@ -32,7 +32,7 @@ class _CaregiverProfilePageBody extends StatelessWidget {
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         elevation: 2,
-        automaticallyImplyLeading: false, // No back button on profile page
+        automaticallyImplyLeading: false,
       ),
       body: _buildBody(context, viewModel),
     );
@@ -1110,7 +1110,6 @@ class _CaregiverProfilePageBody extends StatelessWidget {
     if (confirmed == true && context.mounted) {
       bool success = await viewModel.signOut();
       if (success && context.mounted) {
-        // Navigate to login page
         context.go('/login');
       }
     }

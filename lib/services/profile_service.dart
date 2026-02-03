@@ -26,7 +26,7 @@ class ProfileService {
     }
   }
 
-  /// Get current user details stream (real-time updates)
+  /// Get current user details stream
   Stream<Map<String, dynamic>?> getCurrentUserDetailsStream() {
     try {
       String userId = _auth.currentUser!.uid;
@@ -88,7 +88,7 @@ class ProfileService {
     }
   }
 
-  /// Update user profile (name)
+  /// Update user profile
   Future<void> updateUserProfile({
     required String userId,
     required String name,
@@ -126,8 +126,6 @@ class ProfileService {
       // Update email in Firebase Auth
       await user.verifyBeforeUpdateEmail(newEmail);
 
-      // Note: Email verification is sent, but we update Firestore immediately
-      // In production, you might want to wait for verification
       await _firestore.collection('users').doc(user.uid).update({
         'email': newEmail.trim(),
         'updatedAt': FieldValue.serverTimestamp(),

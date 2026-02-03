@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class YouTubeService {
-  // Replace with your YouTube Data API key
-  static const String _apiKey = 'AIzaSyCXwqMm6td2qLtj07WouZgBzNCIkySAB5E';
+  static String get _apiKey => dotenv.env['YOUTUBE_API_KEY'] ?? '';
   static const String _baseUrl = 'https://www.googleapis.com/youtube/v3';
 
   /// Search for exercise tutorial video
@@ -20,7 +20,7 @@ class YouTubeService {
           'type': 'video',
           'maxResults': '5',
           'videoEmbeddable': 'true',
-          'videoDuration': 'short', // Prefer shorter videos (< 4 min)
+          'videoDuration': 'short',
           'order': 'relevance',
           'key': _apiKey,
         },

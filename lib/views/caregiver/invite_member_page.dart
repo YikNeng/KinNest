@@ -61,7 +61,7 @@ class _InviteMemberPageBody extends StatelessWidget {
       );
     }
 
-    // Not admin - show error
+    // Show error if not admin
     if (!viewModel.isAdmin) {
       return Center(
         child: Padding(
@@ -104,7 +104,7 @@ class _InviteMemberPageBody extends StatelessWidget {
       );
     }
 
-    // Admin - show invitation form
+    // Show invitation form if admin
     return SafeArea(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -376,7 +376,7 @@ class _InviteMemberPageBody extends StatelessWidget {
     );
   }
 
-  // Helper: Build label
+  // Build label
   Widget _buildLabel(String text) {
     return Row(
       children: [
@@ -436,7 +436,6 @@ class _InviteMemberPageBody extends StatelessWidget {
       // Clear form
       viewModel.clearForm();
 
-      // Wait and go back
       await Future.delayed(const Duration(milliseconds: 500));
       if (context.mounted) {
         context.pop();

@@ -6,7 +6,7 @@ class GroupMemberModel {
   final String uid;
   final String name;
   final String email;
-  final String role; // 'caregiver' or 'elderly'
+  final String role;
   final bool isAdmin;
   final DateTime? joinedAt;
 

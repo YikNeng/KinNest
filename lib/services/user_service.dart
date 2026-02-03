@@ -12,8 +12,8 @@ class UserService {
     required String uid,
     required String email,
     required String name,
-    required String role, // "elderly" or "caregiver"
-    String? phone, // Elderly-specific fields (optional)
+    required String role,
+    String? phone,
     int? age,
     double? height,
     double? weight,
@@ -21,7 +21,7 @@ class UserService {
     String? mobilityLevel,
   }) async {
     try {
-      // Base user data (common for both roles)
+      // Base user data
       Map<String, dynamic> userData = {
         'uid': uid,
         'email': email,
@@ -29,7 +29,7 @@ class UserService {
         'role': role,
         'phone': phone,
         'profileImageUrl': null,
-        'groupIds': [], // Empty array initially
+        'groupIds': [],
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       };
@@ -67,11 +67,6 @@ class UserService {
   }
 
   /// Get elderly profile by user ID
-  ///
-  /// How it works:
-  /// 1. Fetches document from users/{userId}
-  /// 2. Converts Firestore data to ElderlyProfile model
-  /// 3. Returns null if user doesn't exist
   Future<ElderlyProfile?> getElderlyProfile(String userId) async {
     try {
       DocumentSnapshot doc = await _firestore
@@ -102,17 +97,6 @@ class UserService {
   }
 
   /// Update elderly profile
-  ///
-  /// How it works:
-  /// 1. Takes updated profile data
-  /// 2. Converts to Firestore format
-  /// 3. Updates only editable fields (age, height, weight, health, mobility)
-  /// 4. Sets updatedAt timestamp automatically
-  ///
-  /// Safety:
-  /// - Only updates specified fields (partial update)
-  /// - Preserves email, role, and createdAt
-  /// - Uses server timestamp for consistency
   Future<void> updateElderlyProfile({
     required String userId,
     int? age,
@@ -130,8 +114,9 @@ class UserService {
       if (age != null) updates['age'] = age;
       if (height != null) updates['height'] = height;
       if (weight != null) updates['weight'] = weight;
-      if (medicalConditions != null)
+      if (medicalConditions != null) {
         updates['medicalConditions'] = medicalConditions;
+      }
       if (mobilityLevel != null) updates['mobilityLevel'] = mobilityLevel;
 
       await _firestore.collection('users').doc(userId).update(updates);
@@ -157,15 +142,10 @@ class UserService {
     if (token == null) return;
 
     try {
-      // Use set with merge: true (Upsert).
-      // This is safer than update() because it creates the field if it's missing
-      // and won't crash if the user document is slightly out of sync.
       await _firestore.collection('users').doc(userId).set({
         'fcmToken': token,
         'lastTokenUpdate': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      print('FCM Token saved for user: $userId');
     } catch (e) {
       print('Error saving token: $e');
     }

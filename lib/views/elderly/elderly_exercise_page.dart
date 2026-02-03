@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:latest_fyp/views/elderly/elderly_exercise_routine_page.dart';
 import 'package:provider/provider.dart';
 import '../../viewmodels/exercise_viewmodel.dart';
@@ -7,8 +6,7 @@ import '../../viewmodels/exercise_viewmodel.dart';
 class ElderlyExercisePage extends StatefulWidget {
   final bool skipAutoNavigate;
 
-  const ElderlyExercisePage({Key? key, this.skipAutoNavigate = false})
-    : super(key: key);
+  const ElderlyExercisePage({super.key, this.skipAutoNavigate = false});
 
   @override
   State<ElderlyExercisePage> createState() => _ElderlyExercisePageState();
@@ -76,8 +74,6 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
     ExerciseViewModel viewModel,
   ) async {
     bool success = await viewModel.generateRoutine();
-    // After generation, we don't need to push anymore because
-    // the build method above will automatically switch to the routine view.
   }
 
   Widget _buildLoading() {
@@ -271,7 +267,6 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
     bool isMissing = false,
   }) {
     return Row(
-      // Aligns items to the top so icons stay aligned if text wraps to a new line
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(
@@ -280,9 +275,9 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
           color: isMissing ? Colors.orange[700] : Colors.blue[700],
         ),
         const SizedBox(width: 12),
-        // Use a SizedBox with a fixed width for the label to create a "column" effect
+
         SizedBox(
-          width: 140, // Adjust this width as needed to fit your longest label
+          width: 140,
           child: Text(
             '$label: ',
             style: TextStyle(
@@ -292,7 +287,6 @@ class _ElderlyExercisePageState extends State<ElderlyExercisePage> {
             ),
           ),
         ),
-        // The value will now always start at the same horizontal position
         Expanded(
           child: Text(
             value,

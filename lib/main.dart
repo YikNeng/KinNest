@@ -8,13 +8,14 @@ import 'package:provider/provider.dart';
 import 'package:latest_fyp/services/user_service.dart';
 import 'providers/auth_state_provider.dart';
 import 'router/app_router.dart';
-import 'package:timezone/data/latest.dart' as tz; // Add this import
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-// 1. Initialize Local Notifications (Global)
+// Initialize Local Notifications (Global)
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-// 2. HIGH IMPORTANCE CHANNEL (for FCM notifications)
+// HIGH IMPORTANCE CHANNEL (for FCM notifications)
 const AndroidNotificationChannel highImportanceChannel =
     AndroidNotificationChannel(
       'high_importance_channel',
@@ -23,51 +24,49 @@ const AndroidNotificationChannel highImportanceChannel =
       importance: Importance.max,
     );
 
-// 3. ALARM CHANNEL (for local alarm notifications) - CRITICAL!
+// ALARM CHANNEL (for local alarm notifications)
 const AndroidNotificationChannel alarmChannel = AndroidNotificationChannel(
-  'reminder_alarms_v2',
+  'reminder_alarms_v3',
   'Reminder Alarms',
   description: 'Alarms for medication and appointment reminders',
   importance: Importance.max,
+  sound: RawResourceAndroidNotificationSound('alarm_sound'),
   playSound: true,
   enableVibration: true,
   showBadge: true,
 );
 
 void main() async {
+  await dotenv.load(fileName: ".env");
+
   WidgetsFlutterBinding.ensureInitialized();
 
   tz.initializeTimeZones();
 
   await Firebase.initializeApp();
-  print('✅ Firebase initialized');
 
-  // Initialize alarm service FIRST
+  // Initialize alarm service
   await AlarmService().initialize();
-  print('✅ AlarmService initialized');
 
-  // 3. Create BOTH notification channels
+  // Create BOTH notification channels
   final androidImpl = flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
       >();
 
   if (androidImpl != null) {
-    // Create high importance channel (FCM)
     await androidImpl.createNotificationChannel(highImportanceChannel);
-    print('✅ High importance channel created');
-
-    // Create alarm channel (Local alarms) - CRITICAL!
     await androidImpl.createNotificationChannel(alarmChannel);
-    print('✅ Alarm channel created');
   }
 
-  // 4. Force Foreground Notifications
+  // Force Foreground Notifications
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
     alert: true,
     badge: true,
     sound: true,
   );
+
+  // Check if launched by notification
   String? initialRoute;
   try {
     final NotificationAppLaunchDetails? notificationAppLaunchDetails =
@@ -77,41 +76,29 @@ void main() async {
       final payload =
           notificationAppLaunchDetails!.notificationResponse?.payload;
       if (payload != null) {
-        print(
-          '🚀 App launched via Alarm! Redirecting to: /reminder-alarm/$payload',
-        );
         initialRoute = '/reminder-alarm/$payload';
       }
     }
   } catch (e) {
     print('Error checking notification launch: $e');
   }
-  // 5. Listen to auth state changes
+
+  // Listen to auth state changes
   FirebaseAuth.instance.authStateChanges().listen((User? user) {
     if (user != null) {
-      print('👤 User logged in: ${user.uid}');
       setupNotifications(user.uid);
-
-      // Schedule all pending reminders for this user
       AlarmService().scheduleAllUserReminders(user.uid);
-    } else {
-      print('👤 User logged out');
     }
   });
 
-  print('✅ App initialization complete');
+  // Use the StatefulWidget wrapper
   runApp(MyApp(initialRoute: initialRoute));
 }
 
-// --------------------------------------------------------------------------
 // Notification Setup Logic
-// --------------------------------------------------------------------------
 Future<void> setupNotifications(String? userId) async {
   if (userId == null) return;
-
   FirebaseMessaging messaging = FirebaseMessaging.instance;
-
-  // Request Permission
   NotificationSettings settings = await messaging.requestPermission(
     alert: true,
     badge: true,
@@ -119,45 +106,37 @@ Future<void> setupNotifications(String? userId) async {
   );
 
   if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-    print('✅ FCM permission granted');
-
-    // 1. Get the current token
     String? token = await messaging.getToken();
-
     if (token != null) {
-      print('📱 FCM Token: ${token.substring(0, 20)}...');
       await UserService().saveUserToken(userId, token);
     }
-
-    // 2. Listen for token refreshes
     FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-      print('🔄 FCM Token refreshed');
       UserService().saveUserToken(userId, newToken);
     });
-
-    // 3. Handle Foreground Messages
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      print('📬 Foreground message received');
-      print('  Title: ${message.notification?.title}');
-      print('  Body: ${message.notification?.body}');
-    });
-  } else {
-    print('❌ FCM permission denied');
   }
 }
 
-class MyApp extends StatelessWidget {
+// Main App Widget
+class MyApp extends StatefulWidget {
   final String? initialRoute;
-  MyApp({Key? key, this.initialRoute}) : super(key: key);
+  const MyApp({Key? key, this.initialRoute}) : super(key: key);
 
-  // Create navigator key - CRITICAL for alarm navigation
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
-  Widget build(BuildContext context) {
-    // Set navigator key for AlarmService - CRITICAL!
+  void initState() {
+    super.initState();
     AlarmService.navigatorKey = navigatorKey;
-    print('🗺️ Navigator key set for AlarmService');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    AlarmService.navigatorKey = navigatorKey;
 
     return ChangeNotifierProvider(
       create: (_) => AuthStateProvider(),
@@ -168,11 +147,17 @@ class MyApp extends StatelessWidget {
             listen: false,
           );
 
-          // PASS THE INITIAL ROUTE HERE
+          // Create Router with Navigator Key
           final router = createRouter(
             authStateProvider,
-            initialLocation: initialRoute,
+            initialLocation: widget.initialRoute,
+            navigatorKey: navigatorKey, // PASS IT HERE
           );
+
+          // Check queue after frame builds
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            AlarmService().processPendingNavigation();
+          });
 
           return MaterialApp.router(
             title: 'Smart Elderly Care',

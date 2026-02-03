@@ -110,7 +110,7 @@ class _RegisterViewBody extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // Phone Field (Optional)
+              // Phone Field
               _buildLabel('Phone Number (Optional)'),
               const SizedBox(height: 8),
               _buildTextField(
@@ -120,7 +120,7 @@ class _RegisterViewBody extends StatelessWidget {
                 keyboardType: TextInputType.phone,
               ),
 
-              // Elderly-specific fields (conditionally shown)
+              // Elderly-specific fields
               if (viewModel.isElderlySelected) ...[
                 const SizedBox(height: 32),
                 _buildSectionTitle('Health Information'),
@@ -533,9 +533,6 @@ class _RegisterViewBody extends StatelessWidget {
 
     // Call register method
     bool success = await viewModel.register();
-
-    // GoRouter will automatically redirect based on auth state and role
-    // No manual navigation needed!
 
     if (!success && context.mounted) {
       // Error message already shown in UI via viewModel.errorMessage

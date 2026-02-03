@@ -104,25 +104,21 @@ class _ReminderListPageBody extends StatelessWidget {
                             color: Colors.blue[800],
                           ),
                         )
-                      : _buildReminderList(
-                          context,
-                          viewModel,
-                        )), // Existing Active List
+                      : _buildReminderList(context, viewModel)),
           ),
         ],
       ),
     );
   }
 
-  // --- NEW: History List Widget (Solution 1 Implementation) ---
+  // History List Widget
   Widget _buildPastHistoryList(
     BuildContext context,
     ReminderViewModel viewModel,
     String currentGroupId,
   ) {
-    // 1. Get Active Overdue Reminders from ViewModel
-    // When filterMode is 'past', viewModel.reminders automatically contains
-    // active reminders that are overdue (time < now).
+    // Get Active Overdue Reminders from ViewModel
+
     List<Map<String, dynamic>> activeOverdueReminders = viewModel.reminders;
 
     return StreamBuilder<QuerySnapshot>(
@@ -139,7 +135,7 @@ class _ReminderListPageBody extends StatelessWidget {
           );
         }
 
-        // 2. Prepare Lists
+        // Prepare Lists
         List<Map<String, dynamic>> historyList = [];
 
         // Parse Firestore History Data
@@ -149,35 +145,34 @@ class _ReminderListPageBody extends StatelessWidget {
           }).toList();
         }
 
-        // 3. Convert Active Overdue to Display Format (Match History Structure)
+        // Convert Active Overdue to Display Format (Match History Structure)
         List<Map<String, dynamic>> overdueList = activeOverdueReminders.map((
           r,
         ) {
           return {
             'taskTitle': r['title'],
-            'status': 'overdue', // Force status to overdue
+            'status': 'overdue',
             'scheduledFor': r['scheduledTime'],
             'completedAt': null,
-            // Optional: Add IDs if you want to make them clickable later
             'originalReminderId': r['reminderId'],
             'groupId': r['groupId'],
           };
         }).toList();
 
-        // 4. Merge Active Overdue + History
+        // Merge Active Overdue + History
         List<Map<String, dynamic>> combinedList = [
           ...overdueList,
           ...historyList,
         ];
 
-        // 5. Sort Combined List (Newest scheduled time first)
+        // Sort Combined List
         combinedList.sort((a, b) {
           Timestamp tA = a['scheduledFor'];
           Timestamp tB = b['scheduledFor'];
-          return tB.compareTo(tA); // Descending
+          return tB.compareTo(tA);
         });
 
-        // 6. Handle Empty State
+        // Handle Empty State
         if (combinedList.isEmpty) {
           return Center(
             child: Column(
@@ -194,7 +189,7 @@ class _ReminderListPageBody extends StatelessWidget {
           );
         }
 
-        // 7. Build List
+        // Build List
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: combinedList.length,
@@ -367,8 +362,6 @@ class _ReminderListPageBody extends StatelessWidget {
               viewModel,
               'past',
               'PAST',
-              // Note: You might want to update viewModel to count history docs,
-              // or just hide the count for past if not syncing perfectly.
               viewModel.pastCount,
             ),
           ),
@@ -497,7 +490,7 @@ class _ReminderListPageBody extends StatelessWidget {
     Map<String, dynamic> reminder,
   ) {
     // Basic Properties
-    String type = reminder['type'] ?? 'normal';
+    String type = reminder['type'] ?? 'General';
     Color color = viewModel.getReminderColor(type);
 
     // Assigned User Info
@@ -536,7 +529,7 @@ class _ReminderListPageBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- Header: Color Bar & Type ---
+              // Header
               Container(
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.1),
@@ -576,7 +569,7 @@ class _ReminderListPageBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- Title ---
+                    // Title
                     Text(
                       reminder['title'] ?? 'Untitled',
                       style: const TextStyle(
@@ -604,7 +597,7 @@ class _ReminderListPageBody extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // --- Info Grid (Time & Person) ---
+                    // Info Grid (Time & Person)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -680,12 +673,12 @@ class _ReminderListPageBody extends StatelessWidget {
                       ),
                     ),
 
-                    // --- Medication Specifics ---
+                    // Medication Specifics
                     if (type.toLowerCase() == 'medication' &&
                         reminder['typeSpecificData'] != null)
                       _buildMedicationDetails(reminder['typeSpecificData']),
 
-                    // --- Action Button (Complete) ---
+                    // Action Button
                     if (viewModel.isElderly &&
                         viewModel.filterMode == 'upcoming' &&
                         !viewModel.isCompleted(reminder)) ...[
@@ -737,8 +730,6 @@ class _ReminderListPageBody extends StatelessWidget {
       ),
     );
   }
-
-  // --- Helper Widgets ---
 
   Widget _buildRecursiveDetails(Map<String, dynamic> reminder) {
     String repeatType = reminder['repeatType'] ?? 'once';

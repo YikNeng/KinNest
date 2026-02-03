@@ -7,12 +7,12 @@ class ReminderService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final NotificationService _notificationService = NotificationService();
 
-  /// Get all reminders for a group (stream for real-time updates)
+  /// Get all reminders for a group
   Stream<List<Map<String, dynamic>>> getGroupRemindersStream(String groupId) {
     return _firestore
         .collection('reminders')
         .where('groupId', isEqualTo: groupId)
-        .orderBy('scheduledTime', descending: false) // Earliest first
+        .orderBy('scheduledTime', descending: false)
         .snapshots()
         .map((snapshot) {
           return snapshot.docs.map((doc) {
@@ -23,7 +23,7 @@ class ReminderService {
         });
   }
 
-  /// Get all reminders for a group (one-time fetch)
+  /// Get all reminders for a group
   Future<List<Map<String, dynamic>>> getGroupReminders(String groupId) async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -42,7 +42,7 @@ class ReminderService {
     }
   }
 
-  /// Get upcoming reminders for a group (next 5)
+  /// Get upcoming reminders for a group
   Future<List<Map<String, dynamic>>> getGroupUpcomingReminders(
     String groupId,
   ) async {
@@ -50,12 +50,9 @@ class ReminderService {
       QuerySnapshot snapshot = await _firestore
           .collection('reminders')
           .where('groupId', isEqualTo: groupId)
-          .where(
-            'scheduledTime',
-            isGreaterThanOrEqualTo: Timestamp.now(),
-          ) // Future reminders only
-          .orderBy('scheduledTime', descending: false) // Earliest first
-          .limit(5) // Only show next 5
+          .where('scheduledTime', isGreaterThanOrEqualTo: Timestamp.now())
+          .orderBy('scheduledTime', descending: false)
+          .limit(5)
           .get();
 
       return snapshot.docs.map((doc) {
@@ -110,7 +107,7 @@ class ReminderService {
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      // ✅ CANCEL CURRENT ALARM (always cancel first)
+      // Cancel current alarm
       final AlarmService alarmService = AlarmService();
       await alarmService.cancelReminderAlarm(reminderId);
 
@@ -119,7 +116,7 @@ class ReminderService {
         Timestamp currentScheduledTimestamp = reminderData['scheduledTime'];
         DateTime currentScheduledTime = currentScheduledTimestamp.toDate();
 
-        // Get repeatDays if available (for specific_days type)
+        // Get repeatDays if available
         List<int> repeatDays = [];
         if (reminderData['repeatDays'] != null) {
           repeatDays = List<int>.from(reminderData['repeatDays']);
@@ -128,14 +125,13 @@ class ReminderService {
         DateTime nextScheduledTime = _calculateNextOccurrence(
           currentScheduledTime,
           repeatType,
-          repeatDays, // Pass the specific days
+          repeatDays,
         );
 
         updateData['scheduledTime'] = Timestamp.fromDate(nextScheduledTime);
         updateData['isCompleted'] = false; // Reset for next occurrence
         updateData['isOverdueNotified'] = false;
-        updateData['completedAt'] =
-            Timestamp.now(); // Keep last completion timestamp reference
+        updateData['completedAt'] = Timestamp.now();
 
         // Update Firestore first
         await _firestore
@@ -143,24 +139,22 @@ class ReminderService {
             .doc(reminderId)
             .update(updateData);
 
-        // ✅ SCHEDULE NEW ALARM for next occurrence (only if in future)
+        // schedule new alarm for next occurrence
         if (nextScheduledTime.isAfter(DateTime.now())) {
           await alarmService.scheduleReminderAlarm(
             reminderId: reminderId,
             title: reminderData['title'] ?? 'Reminder',
             description: reminderData['description'] ?? '',
             scheduledTime: nextScheduledTime,
-            reminderType: reminderData['type'] ?? 'normal',
+            reminderType: reminderData['type'] ?? 'general',
           );
         }
       } else {
-        // One-time reminder - just update without rescheduling alarm
+        // Update One-time reminder
         await _firestore
             .collection('reminders')
             .doc(reminderId)
             .update(updateData);
-
-        // Alarm already cancelled above, no need to reschedule
       }
     } catch (e) {
       throw Exception('Failed to mark reminder as complete: $e');
@@ -176,10 +170,6 @@ class ReminderService {
     if (repeatType == 'specific_days' &&
         repeatDays != null &&
         repeatDays.isNotEmpty) {
-      // Find the next matching day of the week
-      // 1 = Mon, 7 = Sun
-
-      // Sort days to be safe
       repeatDays.sort();
 
       int currentWeekday = currentTime.weekday;
@@ -231,16 +221,13 @@ class ReminderService {
       case 'every_6_days':
         return currentTime.add(const Duration(days: 6));
       default:
-        // Fallback for 'once' or unknown
         return currentTime.add(const Duration(days: 1));
     }
   }
 
-  /// Mark reminder as incomplete (undo completion)
+  /// Mark reminder as incomplete
   Future<void> markReminderIncompleteWithHistory(String reminderId) async {
     try {
-      // For recurring reminders, we don't undo - just let next cycle handle it
-      // For one-time reminders, we can undo
       DocumentSnapshot reminderDoc = await _firestore
           .collection('reminders')
           .doc(reminderId)
@@ -263,7 +250,6 @@ class ReminderService {
         'completedAt': null,
         'completedBy': null,
         'updatedAt': FieldValue.serverTimestamp(),
-        // Note: We keep completionHistory for audit trail
       });
     } catch (e) {
       throw Exception('Failed to mark reminder as incomplete: $e');
@@ -402,12 +388,9 @@ class ReminderService {
     }
   }
 
-  /// Delete reminder (caregiver only)
-  // In lib/services/reminder_service.dart
-
+  /// Delete reminder
   Future<void> deleteReminder(String reminderId) async {
     try {
-      // 1. FETCH FIRST (Move this up)
       DocumentSnapshot doc = await _firestore
           .collection('reminders')
           .doc(reminderId)
@@ -416,10 +399,8 @@ class ReminderService {
       if (doc.exists) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-        // 2. DELETE SECOND
         await _firestore.collection('reminders').doc(reminderId).delete();
 
-        // 3. NOTIFY
         String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
         Map<String, dynamic>? user = await getUserDetails(currentUserId);
 
@@ -485,7 +466,6 @@ class ReminderService {
   }
 
   /// Get reminder type icon
-  /// FIXED: Replaced corrupted characters with standard Emojis
   String getReminderTypeIcon(String? type) {
     switch (type?.toLowerCase()) {
       case 'medication':
@@ -498,7 +478,6 @@ class ReminderService {
   }
 
   /// Get reminder type color
-  /// FIXED: Replaced corrupted characters
   String getReminderTypeColorName(String? type) {
     switch (type?.toLowerCase()) {
       case 'medication':
@@ -521,7 +500,7 @@ class ReminderService {
     required DateTime scheduledDate,
     required String scheduledTime,
     required String repeatType,
-    List<int>? repeatDays, // Added parameter
+    List<int>? repeatDays,
     String? voiceNoteUrl,
     Map<String, dynamic>? typeSpecificData,
   }) async {
@@ -567,28 +546,26 @@ class ReminderService {
           .collection('reminders')
           .add(reminderData);
 
-      // ✅ GET THE REMINDER ID
       String reminderId = docRef.id;
 
-      // ✅ UPDATE DOCUMENT WITH reminderId FIELD
       await docRef.update({'reminderId': reminderId});
 
-      // --- SEND NOTIFICATIONS ---
+      // Send Notifications
       try {
         // Get creator details to know who is sending it
         Map<String, dynamic>? creator = await getUserDetails(createdBy);
         String creatorName = creator?['name'] ?? 'A caregiver';
         String creatorRole = creator?['role'] ?? 'unknown';
 
-        // Case A: Caregiver creates for Elderly
+        // If caregiver creates for Elderly
         if (creatorRole == 'caregiver' && createdBy != assignedTo) {
           await _notificationService.notifyElderlyOfNewReminder(
-            assignedTo, // The elderly ID
+            assignedTo,
             title,
             creatorName,
           );
         }
-        // Case B: Elderly creates for themselves
+        // If elderly creates for themselves
         else if (creatorRole == 'elderly') {
           await _notificationService.notifyCaregiversOfAction(
             groupId,
@@ -599,9 +576,7 @@ class ReminderService {
       } catch (e) {
         print("Notification Error: $e"); // Log error but don't stop the app
       }
-      // --- END NOTIFICATIONS ---
 
-      // ✅ RETURN THE REMINDER ID
       return reminderId;
     } catch (e) {
       throw Exception('Failed to create reminder: $e');
@@ -617,7 +592,7 @@ class ReminderService {
     required DateTime scheduledDate,
     required String scheduledTime,
     required String repeatType,
-    List<int>? repeatDays, // Added parameter
+    List<int>? repeatDays,
     String? voiceNoteUrl,
     Map<String, dynamic>? typeSpecificData,
   }) async {
@@ -726,7 +701,8 @@ class ReminderService {
         return 'Medication';
       case 'appointment':
         return 'Appointment';
-      case 'normal':
+      case 'general':
+        return 'General';
       default:
         return 'Reminder';
     }
@@ -756,7 +732,7 @@ class ReminderService {
     }
   }
 
-  /// Get multiple users at once (batch fetch for efficiency)
+  /// Get multiple users at once
   Future<Map<String, Map<String, dynamic>>> getUsersBatch(
     List<String> userIds,
   ) async {
@@ -765,8 +741,6 @@ class ReminderService {
     if (userIds.isEmpty) return usersMap;
 
     try {
-      // Firestore 'in' query supports up to 10 items
-      // If more than 10, split into multiple queries
       List<List<String>> chunks = [];
       for (int i = 0; i < userIds.length; i += 10) {
         chunks.add(
@@ -837,7 +811,7 @@ class ReminderService {
     String caregiverId,
   ) async {
     try {
-      // Step 1: Get all groups where caregiver is admin
+      // Get all groups where caregiver is admin
       QuerySnapshot adminGroupsSnapshot = await _firestore
           .collection('groups')
           .where('adminId', isEqualTo: caregiverId)
@@ -851,13 +825,12 @@ class ReminderService {
         return null;
       }
 
-      // Step 2: Get all upcoming reminders from these groups
+      // Get all upcoming reminders from these groups
       DateTime now = DateTime.now();
       Timestamp nowTimestamp = Timestamp.fromDate(now);
 
       List<Map<String, dynamic>> upcomingReminders = [];
 
-      // Firestore 'in' query supports max 10 items, so chunk if needed
       for (int i = 0; i < groupIds.length; i += 10) {
         List<String> chunk = groupIds.sublist(
           i,
@@ -891,7 +864,7 @@ class ReminderService {
         return null;
       }
 
-      // Step 3: Sort by scheduled time and get nearest
+      // Sort by scheduled time and get nearest
       upcomingReminders.sort((a, b) {
         Timestamp timeA = a['scheduledTime'];
         Timestamp timeB = b['scheduledTime'];
@@ -900,7 +873,7 @@ class ReminderService {
 
       Map<String, dynamic> nearestReminder = upcomingReminders.first;
 
-      // Step 4: Fetch assigned user details
+      // Fetch assigned user details
       String? assignedTo = nearestReminder['assignedTo'];
       if (assignedTo != null) {
         DocumentSnapshot userDoc = await _firestore
@@ -915,7 +888,7 @@ class ReminderService {
         }
       }
 
-      // Step 5: Fetch group name
+      // Fetch group name
       String groupId = nearestReminder['groupId'];
       DocumentSnapshot groupDoc = await _firestore
           .collection('groups')
@@ -934,12 +907,11 @@ class ReminderService {
     }
   }
 
-  /// Get nearest upcoming reminder stream (real-time)
+  /// Get nearest upcoming reminder stream
   Stream<Map<String, dynamic>?> getNearestUpcomingReminderStream(
     String caregiverId,
   ) async* {
     try {
-      // Get groups caregiver manages
       QuerySnapshot adminGroupsSnapshot = await _firestore
           .collection('groups')
           .where('adminId', isEqualTo: caregiverId)
@@ -955,11 +927,6 @@ class ReminderService {
       }
 
       // Stream reminders from all groups
-      DateTime now = DateTime.now();
-      Timestamp nowTimestamp = Timestamp.fromDate(now);
-
-      // For simplicity, we'll poll every few seconds
-      // In production, you might want a more sophisticated approach
       await for (var _ in Stream.periodic(const Duration(seconds: 30))) {
         Map<String, dynamic>? nearest = await getNearestUpcomingReminder(
           caregiverId,
@@ -1042,8 +1009,7 @@ class ReminderService {
     }
   }
 
-  /// Get upcoming reminders for a group (caregiver view - all reminders)
-  /// This fetches ALL upcoming reminders, not just the next 5
+  /// Get upcoming reminders for a group
   Future<List<Map<String, dynamic>>> getAllUpcomingRemindersForGroup(
     String groupId,
   ) async {
@@ -1110,9 +1076,7 @@ class ReminderService {
     }
   }
 
-  /// MARKS A TASK AS COMPLETE (History Log Pattern)
-  /// 1. Creates a record in 'reminder_history' (preserving the old due date).
-  /// 2. Updates the active 'reminder' to the NEXT occurrence using robust calculation.
+  /// Mark a reminder as completed
   Future<void> completeRecurringTask({
     required String reminderId,
     required String title,
@@ -1134,14 +1098,14 @@ class ReminderService {
     final now = DateTime.now();
     String status = 'completed';
 
-    // 1. Determine Status
+    // Determine Status
     if (forceStatus != null) {
       status = forceStatus;
     } else if (now.isAfter(currentDueDate.add(const Duration(hours: 1)))) {
       status = 'overdue';
     }
 
-    // 2. Add to History (We always want a history log, even for one-time tasks)
+    // Add to History
     batch.set(historyRef, {
       'originalReminderId': reminderId,
       'taskTitle': title,
@@ -1154,16 +1118,13 @@ class ReminderService {
           : (status == 'overdue' ? 'Completed late' : 'On time'),
     });
 
-    // 3. Update Active Reminder based on Repeat Type
+    // Update Active Reminder based on Repeat Type
     if (repeatInterval == 'once') {
-      // CASE A: One-time Task -> Just mark as COMPLETED
       batch.update(reminderRef, {
-        'isCompleted': true, // This hides it from the active list
+        'isCompleted': true,
         'lastCompleted': FieldValue.serverTimestamp(),
-        // We do NOT change scheduledTime for one-time tasks
       });
     } else {
-      // CASE B: Recurring Task -> RESCHEDULE for next time
       DateTime nextDueDate = _calculateNextOccurrence(
         currentDueDate,
         repeatInterval,
@@ -1179,10 +1140,10 @@ class ReminderService {
     }
 
     try {
-      // 1. Get current user (Elderly)
+      // Get current user (Elderly)
       String currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-      // 2. Get the reminder to find the Group ID
+      // Get the reminder to find the Group ID
       DocumentSnapshot reminderDoc = await _firestore
           .collection('reminders')
           .doc(reminderId)
@@ -1192,7 +1153,7 @@ class ReminderService {
         groupId = (reminderDoc.data() as Map<String, dynamic>)['groupId'] ?? '';
       }
 
-      // 3. Notify if we have a Group ID
+      // Notify if we have a Group ID
       if (groupId.isNotEmpty) {
         Map<String, dynamic>? user = await getUserDetails(currentUserId);
         await _notificationService.notifyCaregiversOfCompletion(
@@ -1207,10 +1168,7 @@ class ReminderService {
     await batch.commit();
   }
 
-  /// AUTOMATICALLY HANDLES MISSED REMINDERS
-  /// 1. Logs them as 'missed' in history.
-  /// 2. Reschedules recurring tasks to the future.
-  /// 3. Closes one-time tasks.
+  /// Process missed reminders
   Future<void> processMissedReminders(
     List<Map<String, dynamic>> reminders,
   ) async {
@@ -1224,26 +1182,17 @@ class ReminderService {
       Timestamp scheduledTs = reminder['scheduledTime'];
       DateTime scheduledDateTime = scheduledTs.toDate();
 
-      // Only process if it is SIGNIFICANTLY late (e.g., 24 hours)
-      // or if it is a recurring task that needs rescheduling.
       if (scheduledDateTime.isBefore(now)) {
         String reminderId = reminder['reminderId'];
         String repeatType = reminder['repeatType'] ?? 'once';
 
-        // --- FIXED LOGIC START ---
-
         if (repeatType == 'once') {
-          // DO NOTHING.
-          // Leave 'isCompleted' as false so the UI shows it as RED/OVERDUE.
           continue;
         }
-
-        // --- FIXED LOGIC END ---
 
         // Only reschedule Recurring tasks
         hasUpdates = true;
 
-        // ... (Keep your recurring logic below intact) ...
         List<int>? repeatDays;
         if (reminder['repeatDays'] != null) {
           repeatDays = List<int>.from(reminder['repeatDays']);

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../viewmodels/caregiver_home_viewmodel.dart';
 
 class CaregiverHomePage extends StatelessWidget {
@@ -25,7 +24,6 @@ class _CaregiverHomePageBody extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      // NO AppBar - greeting is now at the top
       body: _buildBody(context, viewModel),
     );
   }
@@ -55,7 +53,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          // Greeting Header as SliverAppBar (stays at top)
+          // Greeting Header
           SliverToBoxAdapter(child: _buildGreetingHeader(context, viewModel)),
 
           // Main Content
@@ -68,7 +66,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
 
                 const SizedBox(height: 32),
 
-                const SizedBox(height: 20), // Extra space at bottom for nav bar
+                const SizedBox(height: 20),
               ]),
             ),
           ),
@@ -77,19 +75,14 @@ class _CaregiverHomePageBody extends StatelessWidget {
     );
   }
 
-  // Updated Greeting Header (now at top without AppBar)
+  // Updated Greeting Header
   Widget _buildGreetingHeader(
     BuildContext context,
     CaregiverHomeViewModel viewModel,
   ) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(
-        20,
-        50,
-        20,
-        24,
-      ), // Top padding for status bar
+      padding: const EdgeInsets.fromLTRB(20, 50, 20, 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -110,7 +103,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Refresh button (top right)
+            // Refresh button
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -224,7 +217,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Row: Type icon + Time until
+            // Header
             Row(
               children: [
                 // Type icon
@@ -278,7 +271,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
               ),
             ),
 
-            // Description (if available)
+            // Description
             if (viewModel.reminderDescription.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
@@ -448,9 +441,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
     required IconData icon,
     required Color color,
   }) {
-    MaterialColor materialColor = color is MaterialColor
-        ? color
-        : Colors.grey; // Fallback
+    MaterialColor materialColor = color is MaterialColor ? color : Colors.grey;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -477,7 +468,7 @@ class _CaregiverHomePageBody extends StatelessWidget {
     );
   }
 
-  // Helper: Get Initials
+  // Get Initials
   String _getInitials(String name) {
     if (name.isEmpty) return '?';
     List<String> parts = name.split(' ');
@@ -502,7 +493,6 @@ class _CaregiverHomePageBody extends StatelessWidget {
       // Navigate to edit page
       context.push('/caregiver/groups/$groupId/reminders/$reminderId/edit');
     } else {
-      // No upcoming reminders, show message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No upcoming reminders found'),

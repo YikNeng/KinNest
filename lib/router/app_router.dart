@@ -16,35 +16,29 @@ import '../services/user_service.dart';
 import '../views/auth/login_view.dart';
 import '../views/auth/register_view.dart';
 import '../views/loading_view.dart';
-
-// Import bottom nav scaffolds
 import '../views/elderly/elderly_bottom_nav_scaffold.dart';
 import '../views/caregiver/caregiver_bottom_nav_scaffold.dart';
-
-// Import elderly pages
 import '../views/elderly/elderly_home_page.dart';
 import '../views/elderly/elderly_exercise_page.dart';
 import '../views/elderly/elderly_music_page.dart';
 import '../views/elderly/elderly_profile_page.dart';
 import '../views/elderly/elderly_exercise_routine_page.dart';
-
-// Import caregiver pages
 import '../views/caregiver/caregiver_groups_page.dart';
 import '../views/caregiver/caregiver_profile_page.dart';
-
-// Import ViewModels
 import '../viewmodels/exercise_viewmodel.dart';
 
 /// Creates GoRouter instance with auth-based and role-based redirects
 GoRouter createRouter(
   AuthStateProvider authStateProvider, {
   String? initialLocation,
+  GlobalKey<NavigatorState>? navigatorKey,
 }) {
   final UserService userService = UserService();
 
   return GoRouter(
     initialLocation: initialLocation ?? '/login',
     refreshListenable: authStateProvider,
+    navigatorKey: navigatorKey,
 
     // Global redirect logic
     redirect: (BuildContext context, GoRouterState state) async {
@@ -61,7 +55,7 @@ GoRouter createRouter(
         return '/loading';
       }
 
-      // If user is NOT authenticated
+      // If user is not authenticated
       if (!isAuthenticated) {
         if (currentPath == '/login' || currentPath == '/register') {
           return null;
@@ -69,7 +63,7 @@ GoRouter createRouter(
         return '/login';
       }
 
-      // If user IS authenticated
+      // If user is authenticated
       if (isAuthenticated) {
         final String? userId = authStateProvider.userId;
 
@@ -194,7 +188,6 @@ GoRouter createRouter(
         },
       ),
 
-      // NEW: Elderly reminder management routes (outside bottom nav)
       GoRoute(
         path: '/elderly/groups/:groupId/reminders/create',
         builder: (context, state) {
@@ -239,7 +232,6 @@ GoRouter createRouter(
         ],
       ),
 
-      // Caregiver group routes (outside bottom nav)
       GoRoute(
         path: '/caregiver/groups/create',
         builder: (context, state) => const CreateGroupPage(),

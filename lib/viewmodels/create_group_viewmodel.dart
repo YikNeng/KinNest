@@ -37,7 +37,7 @@ class CreateGroupViewModel extends ChangeNotifier {
       return false;
     }
 
-    // Validate description (optional)
+    // Validate description
     String? descError = _groupService.validateGroupDescription(
       descriptionController.text,
     );
@@ -51,7 +51,6 @@ class CreateGroupViewModel extends ChangeNotifier {
   }
 
   /// Create a new group
-  /// Returns group ID on success, null on failure
   Future<String?> createGroup() async {
     // Clear previous errors
     _errorMessage = null;

@@ -1,13 +1,12 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class OCRService {
-  // IMPORTANT: In production, store API key securely
-  static const String _apiKey = 'AIzaSyCXwqMm6td2qLtj07WouZgBzNCIkySAB5E';
+  static String get _apiKey => dotenv.env['OCR_KEY'] ?? '';
 
   Future<String> extractTextFromImage(File imageFile) async {
-    // ... (Keep this method exactly the same as before) ...
     try {
       List<int> imageBytes = await imageFile.readAsBytes();
       String base64Image = base64Encode(imageBytes);
@@ -66,7 +65,6 @@ class OCRService {
       'location': null,
     };
 
-    // 1. CLEANING: Fix common OCR handwriting mistakes before parsing
     String cleanText = extractedText
         .replaceAll(RegExp(r'(?<=\d)[,;](?=\d{2})'), ':') // Fix 8,00 to 8:00
         .replaceAll('O', '0') // Fix letter O to zero
@@ -74,21 +72,18 @@ class OCRService {
         .replaceAll('l', '1'); // Fix letter l to 1
 
     try {
-      // --- 1. FIND DATES (Updated for Short Dates) ---
+      // Find dates
       List<DateTime> foundDates = [];
 
-      // Pattern A: Numeric (supports 14/5/2023 AND 14/5)
-      // Group 3 (Year) is now optional (?)
+      // Numeric dates
       RegExp numericDate = RegExp(
         r'(\d{1,2})[\/\-\.](\d{1,2})(?:[\/\-\.](\d{2,4}))?',
       );
 
-      // Pattern B: Text (12 Oct 2023 OR 12 Oct)
+      // Textual dates
       RegExp textDate = RegExp(r'(\d{1,2})\s+([a-zA-Z]+)\.?[\s,\.]+(\d{2,4})?');
 
       for (Match match in numericDate.allMatches(cleanText)) {
-        // Filter: If it matches, ensure it's not just a time (like 8/10 for 8:10)
-        // Simple check: Month must be <= 12, Day <= 31
         DateTime? dt = _parseDateFuzzy(match, isNumeric: true);
         if (dt != null) foundDates.add(dt);
       }
@@ -105,7 +100,7 @@ class OCRService {
         result['date'] = foundDates.last;
       }
 
-      // --- 2. FIND TIME (With "Medical Logic") ---
+      // Find time
       RegExp timePattern = RegExp(
         r'(\d{1,2})[:\.]?(\d{2})?\s*([ap]\.?m\.?|pg|pagi|ptg|petang|tgh|mlm|malam)?',
         caseSensitive: false,
@@ -121,8 +116,7 @@ class OCRService {
         }
       }
 
-      // --- 3. LOCATION ---
-      // (Same location logic as before)
+      // -Find location
       List<String> lines = cleanText.split('\n');
       List<String> locationKeywords = [
         'hospital',
@@ -165,17 +159,14 @@ class OCRService {
 
       if (isNumeric) {
         month = int.parse(match.group(2)!);
-        // Check if Year (Group 3) exists
         if (match.group(3) != null) {
           String yStr = match.group(3)!;
           year = yStr.length == 2 ? 2000 + int.parse(yStr) : int.parse(yStr);
         } else {
-          // No year provided (e.g. 14/5).
-          // Logic: If 14/5 has already passed this year, assume next year.
           DateTime now = DateTime.now();
           DateTime candidate = DateTime(year, month, day);
           if (candidate.isBefore(now.subtract(const Duration(days: 1)))) {
-            year++; // Move to next year
+            year++;
           }
         }
       } else {
@@ -184,7 +175,6 @@ class OCRService {
           String yStr = match.group(3)!;
           year = yStr.length == 2 ? 2000 + int.parse(yStr) : int.parse(yStr);
         } else {
-          // Same logic for text dates without year
           DateTime now = DateTime.now();
           DateTime candidate = DateTime(year, month, day);
           if (candidate.isBefore(now.subtract(const Duration(days: 1)))) {
@@ -228,16 +218,9 @@ class OCRService {
 
         if (isPM && hour < 12) hour += 12;
         if (isAM && hour == 12) hour = 0;
-      }
-      // NEW: "Medical Logic" Fallback
-      // If NO suffix is found (e.g., just "8:00"), assume AM for typical morning hours
-      // because appointments are rarely at 8:00 PM without specifically saying PM.
-      else {
+      } else {
         if (hour >= 7 && hour <= 11) {
-          // Assume AM for 7-11 (7am - 11am)
-          // No change needed as hour is already correct
         } else if (hour >= 1 && hour <= 5) {
-          // Assume PM for 1-5 (1pm - 5pm)
           hour += 12;
         }
       }
@@ -251,7 +234,6 @@ class OCRService {
     }
   }
 
-  // ... (Keep _isValidMonth and _monthStringToInt same as before)
   bool _isValidMonth(String text) {
     return _monthStringToInt(text) != 0;
   }

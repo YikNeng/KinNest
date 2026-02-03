@@ -6,7 +6,7 @@ import '../../viewmodels/bottom_nav_viewmodel.dart';
 /// Bottom navigation scaffold for Caregiver users
 
 class CaregiverBottomNavScaffold extends StatelessWidget {
-  final Widget child; // Current page content passed by GoRouter
+  final Widget child;
 
   const CaregiverBottomNavScaffold({Key? key, required this.child})
     : super(key: key);

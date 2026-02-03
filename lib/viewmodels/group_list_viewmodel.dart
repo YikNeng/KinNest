@@ -66,7 +66,7 @@ class GroupListViewModel extends ChangeNotifier {
         );
   }
 
-  /// Fetch groups (one-time fetch, alternative to stream)
+  /// Fetch groups
   Future<void> fetchGroups() async {
     if (_isDisposed) return;
 
@@ -90,7 +90,7 @@ class GroupListViewModel extends ChangeNotifier {
     }
   }
 
-  /// Refresh groups (pull-to-refresh)
+  /// Refresh groups
   Future<void> refreshGroups() async {
     if (_isDisposed) return;
 
@@ -119,7 +119,7 @@ class GroupListViewModel extends ChangeNotifier {
     return _groupService.getMemberCount(group);
   }
 
-  /// Get role label (Admin or Member)
+  /// Get role label
   String getRoleLabel(Map<String, dynamic> group) {
     return isAdmin(group) ? 'Admin' : 'Member';
   }

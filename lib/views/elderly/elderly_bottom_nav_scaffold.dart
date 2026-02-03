@@ -4,9 +4,8 @@ import 'package:provider/provider.dart';
 import '../../viewmodels/bottom_nav_viewmodel.dart';
 
 /// Bottom navigation scaffold for Elderly users
-/// Contains 5 tabs: Home/Groups, Reminders, Exercise, Music, Profile
 class ElderlyBottomNavScaffold extends StatelessWidget {
-  final Widget child; // Current page content passed by GoRouter
+  final Widget child;
 
   const ElderlyBottomNavScaffold({Key? key, required this.child})
     : super(key: key);
@@ -69,7 +68,7 @@ class _ElderlyBottomNavScaffoldBody extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: child, // Display current page
+      body: child,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: viewModel.currentIndex,
         onTap: (index) => _onTabTapped(context, index, viewModel),

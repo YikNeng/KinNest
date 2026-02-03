@@ -30,7 +30,7 @@ class ElderlyHomeViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - Load user data and nearest reminder
+  /// Initialize to load user data and nearest reminder
   Future<void> _initialize() async {
     if (_isDisposed) return;
 
@@ -45,7 +45,7 @@ class ElderlyHomeViewModel extends ChangeNotifier {
         // Fetch nearest reminder
         await _fetchNearestReminder();
 
-        // ✅ SCHEDULE ALL PENDING REMINDERS
+        // schedule all pending reminders
         await _alarmService.scheduleAllUserReminders(_currentUserId);
       }
 

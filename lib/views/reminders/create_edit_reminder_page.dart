@@ -55,7 +55,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
               tooltip: 'Delete Reminder',
               onPressed: () => _handleDelete(context, viewModel),
             ),
-          const SizedBox(width: 8), // Right padding
+          const SizedBox(width: 8),
         ],
       ),
       body: _buildBody(context, viewModel),
@@ -230,10 +230,10 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         Expanded(
           child: _buildTypeCard(
             context: context,
-            type: 'Normal',
+            type: 'General',
             icon: Icons.notifications,
-            isSelected: viewModel.selectedType == 'normal',
-            onTap: () => viewModel.setReminderType('Normal'),
+            isSelected: viewModel.selectedType == 'general',
+            onTap: () => viewModel.setReminderType('General'),
           ),
         ),
         const SizedBox(width: 12),
@@ -374,7 +374,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         _buildVoiceNoteSection(context, viewModel),
         const SizedBox(height: 20),
 
-        // --- UPDATED: HIDE DATE/TIME IF APPOINTMENT ---
         if (!isAppointment) ...[
           Row(
             children: [
@@ -425,7 +424,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
 
               const SizedBox(width: 16),
 
-              // TIME FIELD logic (Hidden for Medication-Create, and now Hidden for Appointment)
               if (!isMedication || viewModel.isEditMode)
                 Expanded(
                   child: Column(
@@ -473,7 +471,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
           const SizedBox(height: 20),
         ],
 
-        // --- UPDATED: HIDE REPEAT SECTION IF APPOINTMENT ---
         if (!isAppointment) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -507,7 +504,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // --- DAY SELECTOR WIDGET ---
+  //Day Selector Widget
   Widget _buildDaySelector(CreateEditReminderViewModel viewModel) {
     final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -546,7 +543,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // --- VOICE NOTE WIDGETS ---
+  //Voice Note Section
   Widget _buildVoiceNoteSection(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -670,7 +667,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
                 ),
               ),
 
-              if (!viewModel.isCaregiver) ...[
+              if (viewModel.isCaregiver) ...[
                 IconButton(
                   onPressed: () => _confirmDeleteVoiceNote(context, viewModel),
                   icon: Icon(Icons.delete_outline, color: Colors.red[700]),
@@ -835,7 +832,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // --- REPLACED _buildMedicationFields ---
+  // Medication Fields
   Widget _buildMedicationFields(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -868,7 +865,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
-        // --- DOSAGE FREQUENCY (Only in Create Mode) ---
         if (!viewModel.isEditMode) ...[
           _buildLabel('Dosage Times (per day)', required: true),
           const SizedBox(height: 8),
@@ -1061,10 +1057,8 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             ),
 
             const SizedBox(height: 8),
-            // --- FIXED: ADDED onChanged ---
             TextField(
               controller: viewModel.getMedicationController(index, 'name'),
-              // This line is crucial: updates the data model as you type
               onChanged: (value) =>
                   viewModel.updateMedication(index, 'name', value),
               style: const TextStyle(fontSize: 18),
@@ -1094,10 +1088,8 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             _buildLabel('Dosage', required: true),
             const SizedBox(height: 8),
 
-            // --- FIXED: ADDED onChanged ---
             TextField(
               controller: viewModel.getMedicationController(index, 'dosage'),
-              // This line is crucial: updates the data model as you type
               onChanged: (value) =>
                   viewModel.updateMedication(index, 'dosage', value),
               style: const TextStyle(fontSize: 18),
@@ -1162,8 +1154,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // ... inside _CreateEditReminderPageBody ...
-
+  // Appointment Fields
   Widget _buildAppointmentFields(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -1234,7 +1225,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
 
               const SizedBox(height: 10),
 
-              // NEW: Warning Text
+              // Warning Text
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1365,7 +1356,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // --- NEW: Helper to show selection dialog ---
+  // Helper to show selection dialog
   void _showImageSourceDialog(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -1402,7 +1393,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     );
   }
 
-  // --- UPDATED: Accepts ImageSource ---
+  // Scan Medical Card
   Future<void> _scanMedicalCard(
     BuildContext context,
     CreateEditReminderViewModel viewModel,
@@ -1410,7 +1401,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
   ) async {
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
-      source: source, // Use the selected source
+      source: source,
       imageQuality: 80,
     );
 
@@ -1441,8 +1432,6 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       }
     }
   }
-
-  // --- HELPER METHODS ---
 
   String _formatDate(DateTime date) {
     List<String> months = [
@@ -1703,7 +1692,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
     BuildContext context,
     CreateEditReminderViewModel viewModel,
   ) async {
-    // 1. Show Confirmation Dialog
+    // Show Confirmation Dialog
     final bool? shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1735,7 +1724,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
       ),
     );
 
-    // 2. Perform Delete if confirmed
+    // Perform Delete if confirmed
     if (shouldDelete == true && context.mounted) {
       bool success = await viewModel.deleteReminder();
 
@@ -1753,7 +1742,7 @@ class _CreateEditReminderPageBody extends StatelessWidget {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.pop(); // Go back to previous screen
+        context.pop();
       }
     }
   }
@@ -1860,9 +1849,7 @@ class _VoiceRecordingDialogState extends State<_VoiceRecordingDialog> {
               action: SnackBarAction(
                 label: 'Settings',
                 textColor: Colors.white,
-                onPressed: () {
-                  // openAppSettings();
-                },
+                onPressed: () {},
               ),
             ),
           );

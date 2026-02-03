@@ -34,7 +34,7 @@ class ManageGroupMembersViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - check admin access and load members
+  /// Initialize to check admin access and load members
   Future<void> _initialize() async {
     if (_isDisposed) return;
 

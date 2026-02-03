@@ -12,8 +12,8 @@ class NotificationService {
     required List<String> recipientIds,
     required String title,
     required String body,
-    required String type, // 'reminder_created', 'reminder_update', 'overdue'
-    required String relatedId, // groupId or reminderId
+    required String type,
+    required String relatedId,
     Map<String, dynamic>? extraData,
   }) async {
     if (recipientIds.isEmpty) return;
@@ -45,7 +45,7 @@ class NotificationService {
     await batch.commit();
   }
 
-  /// 1. Notify Elderly: Caregiver creates reminder for them
+  /// Notify Elderly: Caregiver creates reminder for them
   Future<void> notifyElderlyOfNewReminder(
     String elderlyId,
     String reminderTitle,
@@ -58,10 +58,9 @@ class NotificationService {
       type: 'reminder_created',
       relatedId: '',
     );
-    print('Notified elderly user: $elderlyId');
   }
 
-  /// 2. Notify Caregivers: Elderly creates reminder for themselves
+  /// Notify Caregivers: Elderly creates reminder for themselves
   Future<void> notifyCaregiversOfAction(
     String groupId,
     String elderlyName,
@@ -89,13 +88,12 @@ class NotificationService {
         type: 'reminder_activity',
         relatedId: groupId,
       );
-      print('Notified caregivers: $caregiverIds');
     } catch (e) {
       print('Failed to notify caregivers: $e');
     }
   }
 
-  /// 3. Notify Group: Anyone edits/deletes a reminder
+  /// Notify Group: Anyone edits/deletes a reminder
   Future<void> notifyGroupOfChanges(
     String groupId,
     String userName,
@@ -117,13 +115,12 @@ class NotificationService {
         type: 'reminder_update',
         relatedId: groupId,
       );
-      print('Notified group members: $memberIds');
     } catch (e) {
       print('Failed to notify group: $e');
     }
   }
 
-  /// 4. Notify Caregivers: Elderly completes a reminder
+  /// Notify Caregivers: Elderly completes a reminder
   Future<void> notifyCaregiversOfCompletion(
     String groupId,
     String elderlyName,
@@ -155,8 +152,7 @@ class NotificationService {
     }
   }
 
-  /// 5. Notify Caregivers: Reminder becomes overdue (alarm timeout)
-  /// This is called when the alarm times out after 2 minutes without user action
+  /// Notify Caregivers: Reminder becomes overdue (alarm timeout)
   Future<void> notifyCaregiversOfOverdue(
     String groupId,
     String elderlyName,
@@ -188,7 +184,6 @@ class NotificationService {
           'reminderTitle': reminderTitle,
         },
       );
-      print('Notified caregivers of overdue: $caregiverIds');
     } catch (e) {
       print('Failed to notify overdue: $e');
     }

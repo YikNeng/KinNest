@@ -244,9 +244,6 @@ class _LoginViewBody extends StatelessWidget {
     // Call login method
     bool success = await viewModel.login();
 
-    // GoRouter will automatically redirect based on auth state and role
-    // No manual navigation needed!
-
     if (!success && context.mounted) {
       // Error message already shown in UI via viewModel.errorMessage
     }

@@ -31,14 +31,14 @@ class CaregiverHomeViewModel extends ChangeNotifier {
   String get reminderId => _nearestReminder?['reminderId'] ?? '';
 
   Timestamp? get scheduledTime => _nearestReminder?['scheduledTime'];
-  String get reminderType => _nearestReminder?['type'] ?? 'normal';
+  String get reminderType => _nearestReminder?['type'] ?? 'general';
   String get repeatType => _nearestReminder?['repeatType'] ?? 'once';
 
   CaregiverHomeViewModel() {
     _initialize();
   }
 
-  /// Initialize - fetch caregiver name and nearest reminder
+  /// Initialize to fetch caregiver name and nearest reminder
   Future<void> _initialize() async {
     _isLoading = true;
     notifyListeners();

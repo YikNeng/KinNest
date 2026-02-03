@@ -150,7 +150,7 @@ class ExerciseRoutine {
     );
   }
 
-  /// Get user-friendly routine type display
+  /// Get routine type display
   String get routineTypeDisplay {
     switch (routineType) {
       case 'short':
@@ -182,10 +182,10 @@ class ExerciseRoutine {
   }
 }
 
-/// Model for exercise preferences (unchanged)
+/// Model for exercise preferences
 class ExercisePreference {
-  final String durationType; // 'short' or 'long_term'
-  final String intensity; // 'low' or 'medium'
+  final String durationType;
+  final String intensity;
 
   ExercisePreference({required this.durationType, required this.intensity});
 

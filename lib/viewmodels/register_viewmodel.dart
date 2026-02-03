@@ -6,7 +6,7 @@ class RegisterViewModel extends ChangeNotifier {
   final AuthService _authService = AuthService();
   final UserService _userService = UserService();
 
-  // Form controllers (common fields)
+  // Form controllers
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
@@ -179,7 +179,6 @@ class RegisterViewModel extends ChangeNotifier {
   }
 
   /// Register new user
-  /// Returns user role on success, null on failure
   Future<bool> register() async {
     if (_isDisposed) return false;
 
@@ -197,13 +196,13 @@ class RegisterViewModel extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      // Step 1: Create user in Firebase Auth
+      // Create user in Firebase Auth
       String uid = await _authService.registerWithEmailPassword(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
 
-      // Step 2: Create user profile in Firestore
+      // Create user profile in Firestore
       String? phone = phoneController.text.trim().isEmpty
           ? null
           : phoneController.text.trim();
@@ -238,7 +237,7 @@ class RegisterViewModel extends ChangeNotifier {
         _isLoading = false;
         notifyListeners();
       }
-      return true; // GoRouter will handle redirect automatically
+      return true;
     } catch (e) {
       // Registration failed
       if (!_isDisposed) {

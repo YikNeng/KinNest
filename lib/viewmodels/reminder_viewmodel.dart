@@ -164,7 +164,7 @@ class ReminderViewModel extends ChangeNotifier {
   void _subscribeToHistory() {
     _historySubscription?.cancel();
 
-    // Safety check: Don't subscribe if no group is selected
+    // Don't subscribe if no group is selected
     if (_selectedGroup == null || _selectedGroup!['groupId'] == null) return;
 
     _historySubscription = FirebaseFirestore.instance
@@ -179,34 +179,25 @@ class ReminderViewModel extends ChangeNotifier {
         });
   }
 
-  // --- FILTERED LIST LOGIC ---
-
   List<Map<String, dynamic>> _getFilteredReminders() {
     DateTime now = DateTime.now();
     List<Map<String, dynamic>> filtered;
 
     if (_filterMode == 'upcoming') {
-      // UPCOMING Logic:
-      // Include items that are in the future OR within the 2-minute buffer.
-      // Must NOT be completed.
       filtered =
           _allReminders.where((r) {
             if (r['isCompleted'] == true) return false;
 
             Timestamp ts = r['scheduledTime'];
-            // Keep in 'Upcoming' until 2 minutes AFTER scheduled time
             return ts.toDate().add(const Duration(minutes: 2)).isAfter(now);
           }).toList()..sort(
             (a, b) =>
                 (a['scheduledTime'] as Timestamp).compareTo(b['scheduledTime']),
           );
     } else {
-      // PAST/OVERDUE Logic:
-      // Include items that are strictly older than (Now - 2 minutes).
-      // CRITICAL: Must NOT be completed (Completed items come from History stream).
       filtered =
           _allReminders.where((r) {
-            if (r['isCompleted'] == true) return false; // Prevents duplicates!
+            if (r['isCompleted'] == true) return false;
 
             Timestamp ts = r['scheduledTime'];
             // Move to 'Past' only after the 2-minute buffer has passed
@@ -230,13 +221,10 @@ class ReminderViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- COUNTERS ---
-
   int get upcomingCount {
     DateTime now = DateTime.now();
     var list = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
-      // Matches the list logic: Include buffer
       return (ts.toDate().add(const Duration(minutes: 2)).isAfter(now)) &&
           r['isCompleted'] != true;
     });
@@ -246,7 +234,7 @@ class ReminderViewModel extends ChangeNotifier {
 
   int get pastCount {
     DateTime now = DateTime.now();
-    // 1. Calculate Active Overdue Count (Incomplete items past the buffer)
+    // Calculate Active Overdue Count (Incomplete items past the buffer)
     int activeOverdueCount = _allReminders.where((r) {
       Timestamp ts = r['scheduledTime'];
 
@@ -255,14 +243,14 @@ class ReminderViewModel extends ChangeNotifier {
           .toDate()
           .add(const Duration(minutes: 2))
           .isBefore(now);
-      bool isIncomplete = r['isCompleted'] != true; // Crucial for deduplication
+      bool isIncomplete = r['isCompleted'] != true;
 
       bool isUserBound = isElderly ? r['assignedTo'] == _currentUserId : true;
 
       return isOverdue && isIncomplete && isUserBound;
     }).length;
 
-    // 2. Return combined count (Firestore History + Active Overdue)
+    // Return combined count (Firestore History + Active Overdue)
     return _pastCount + activeOverdueCount;
   }
 

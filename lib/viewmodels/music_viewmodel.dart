@@ -8,7 +8,7 @@ class MusicViewModel extends ChangeNotifier {
   final MusicService _musicService = MusicService();
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // Stream subscription - MUST be stored and cancelled
+  // Stream subscription
   StreamSubscription<PlayerState>? _playerStateSubscription;
 
   // State
@@ -32,19 +32,13 @@ class MusicViewModel extends ChangeNotifier {
     _initialize();
   }
 
-  /// Initialize - load tracks and setup audio player
+  /// Initialize to load tracks and setup audio player
   Future<void> _initialize() async {
     _setupAudioPlayer();
     await loadTracks();
   }
 
   /// Setup audio player listeners
-  ///
-  /// How it works:
-  /// - Listens to player state changes (playing, paused, stopped, completed)
-  /// - When track completes, resets the playing state
-  /// - Updates UI through notifyListeners()
-  /// - IMPORTANT: Stores subscription so it can be cancelled in dispose()
   void _setupAudioPlayer() {
     _playerStateSubscription = _audioPlayer.onPlayerStateChanged.listen((
       PlayerState state,
@@ -62,7 +56,7 @@ class MusicViewModel extends ChangeNotifier {
     });
   }
 
-  /// Load all music tracks from Firestore
+  /// Load all music tracks
   Future<void> loadTracks() async {
     _isLoading = true;
     _errorMessage = null;
@@ -80,18 +74,11 @@ class MusicViewModel extends ChangeNotifier {
   }
 
   /// Play or pause a track
-  ///
-  /// How multiple tracks are handled safely:
-  /// 1. If tapping same track that's playing → pause it
-  /// 2. If tapping same track that's paused → resume it
-  /// 3. If tapping different track → stop current, play new one
-  ///
-  /// This ensures only one track plays at a time
   Future<void> togglePlayPause(int index) async {
     try {
       MusicTrack track = _tracks[index];
 
-      // Case 1: Tapping the same track that's currently playing
+      // Tapping the same track that's currently playing
       if (_currentPlayingIndex == index && _isPlaying) {
         await _audioPlayer.pause();
         _isPlaying = false;
@@ -99,7 +86,7 @@ class MusicViewModel extends ChangeNotifier {
         return;
       }
 
-      // Case 2: Tapping the same track that's paused (resume)
+      // Tapping the same track that's paused (resume)
       if (_currentPlayingIndex == index && !_isPlaying) {
         await _audioPlayer.resume();
         _isPlaying = true;
@@ -107,7 +94,7 @@ class MusicViewModel extends ChangeNotifier {
         return;
       }
 
-      // Case 3: Playing a different track (or first time playing)
+      // Playing a different track (or first time playing)
       if (_currentPlayingIndex != null) {
         await _audioPlayer.stop();
       }
@@ -144,8 +131,6 @@ class MusicViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    // CRITICAL: Cancel stream subscription BEFORE disposing audio player
-    // This prevents the stream from firing events after dispose
     _playerStateSubscription?.cancel();
 
     // Stop and dispose audio player

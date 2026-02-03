@@ -12,47 +12,41 @@ class AuthService {
   bool get isLoggedIn => _auth.currentUser != null;
 
   /// Login with email and password
-  /// Returns user role on success, throws exception on failure
   Future<String> loginWithEmailPassword({
     required String email,
     required String password,
   }) async {
     try {
-      // 1. Sign in with Firebase Auth (This creates the session)
+      // Sign in with Firebase Auth
       UserCredential userCredential = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
 
-      // 2. Fetch user role from Firestore
+      // Fetch user role from Firestore
       String uid = userCredential.user!.uid;
       DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(uid)
           .get();
 
-      // Check 1: Does the document exist?
+      // Check if user document exist
       if (!userDoc.exists) {
-        // CRITICAL: Rollback the auth session so user isn't stuck "logged in"
         await _auth.signOut();
         throw Exception('User profile not found in database');
       }
 
-      // Check 2: Does the data exist and contain 'role'?
-      // We use .data() and Map access to avoid "Bad state" crashes
+      // Check whether the data exist contain 'role'?
       final data = userDoc.data() as Map<String, dynamic>?;
 
       if (data == null || !data.containsKey('role')) {
-        // CRITICAL: Rollback the auth session
         await _auth.signOut();
         throw Exception('User account is missing role information');
       }
 
-      // Safe to access now
       String role = data['role'] as String;
       return role;
     } on FirebaseAuthException catch (e) {
-      // Auth failed, no session created, no need to sign out
       switch (e.code) {
         case 'user-not-found':
           throw Exception('No user found with this email');
@@ -66,7 +60,6 @@ class AuthService {
           throw Exception('Login failed: ${e.message}');
       }
     } catch (e) {
-      // If we crashed AFTER auth but BEFORE returning, ensure we clean up
       if (_auth.currentUser != null) {
         await _auth.signOut();
       }
@@ -101,7 +94,6 @@ class AuthService {
   }
 
   /// Register new user with email and password
-  /// Returns the created user's UID
   Future<String> registerWithEmailPassword({
     required String email,
     required String password,

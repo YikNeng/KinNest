@@ -4,15 +4,14 @@ class InvitationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   /// Send invitation to join a group
-  /// Adds invitation record to group document
   Future<void> sendInvitation({
     required String groupId,
     required String email,
-    required String role, // "elderly" or "caregiver"
-    required String invitedBy, // Admin's UID
+    required String role,
+    required String invitedBy,
   }) async {
     try {
-      // Step 1: Check if email is already invited or member
+      // Check if email is already invited or member
       DocumentSnapshot groupDoc = await _firestore
           .collection('groups')
           .doc(groupId)
@@ -24,7 +23,7 @@ class InvitationService {
 
       Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
 
-      // Check if already invited (pending)
+      // Check if already invited
       List<dynamic> invitations = groupData['invitations'] ?? [];
       bool alreadyInvited = invitations.any(
         (inv) =>
@@ -36,7 +35,7 @@ class InvitationService {
         throw Exception('This email already has a pending invitation');
       }
 
-      // Step 2: Check if user with this email already exists and is a member
+      // Check if user with this email already exists and is a member
       QuerySnapshot userSnapshot = await _firestore
           .collection('users')
           .where('email', isEqualTo: email.toLowerCase())
@@ -54,21 +53,18 @@ class InvitationService {
         }
       }
 
-      // Step 3: Add invitation to group document
-      // FIX: Use Timestamp.now() instead of FieldValue.serverTimestamp()
+      // Add invitation to group document
       await _firestore.collection('groups').doc(groupId).update({
         'invitations': FieldValue.arrayUnion([
           {
             'email': email.toLowerCase(),
             'role': role,
             'invitedBy': invitedBy,
-            'invitedAt':
-                Timestamp.now(), // Changed from FieldValue.serverTimestamp()
-            'status': 'pending', // "pending", "accepted", "declined", "expired"
+            'invitedAt': Timestamp.now(),
+            'status': 'pending',
           },
         ]),
-        'updatedAt':
-            FieldValue.serverTimestamp(), // This is fine outside arrayUnion
+        'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (e) {
       if (e.toString().contains('Exception:')) {
@@ -100,7 +96,7 @@ class InvitationService {
     }
   }
 
-  /// Get pending invitations for a specific email (used when user registers/logs in)
+  /// Get pending invitations for a specific email
   Future<List<Map<String, dynamic>>> getPendingInvitationsForEmail(
     String email,
   ) async {
@@ -137,8 +133,6 @@ class InvitationService {
       throw Exception('Failed to get pending invitations: $e');
     }
   }
-
-  // Add to existing InvitationService class
 
   /// Get pending invitations for current user's email
   Future<List<Map<String, dynamic>>> getPendingInvitationsForCurrentUser(
@@ -178,7 +172,7 @@ class InvitationService {
                 inviterName = inviterData['name'] ?? 'Unknown';
               }
             } catch (e) {
-              // Ignore inviter fetch errors
+              // Ignore errors and keep inviterName as 'Unknown'
             }
 
             pendingInvitations.add({
@@ -190,13 +184,13 @@ class InvitationService {
               'invitedBy': inv['invitedBy'],
               'inviterName': inviterName,
               'invitedAt': inv['invitedAt'],
-              'invitation': inv, // Store full invitation for updates
+              'invitation': inv,
             });
           }
         }
       }
 
-      // Sort by invitation date (newest first)
+      // Sort by invitation date
       pendingInvitations.sort((a, b) {
         Timestamp aTime = a['invitedAt'] ?? Timestamp.now();
         Timestamp bTime = b['invitedAt'] ?? Timestamp.now();
@@ -214,10 +208,10 @@ class InvitationService {
     required String groupId,
     required String userEmail,
     required String userId,
-    required String role, // "elderly" or "caregiver"
+    required String role,
   }) async {
     try {
-      // Step 1: Get group document
+      //  Get group document
       DocumentSnapshot groupDoc = await _firestore
           .collection('groups')
           .doc(groupId)
@@ -230,7 +224,7 @@ class InvitationService {
       Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
       List<dynamic> invitations = groupData['invitations'] ?? [];
 
-      // Step 2: Find the pending invitation
+      // Find the pending invitation
       Map<String, dynamic>? targetInvitation;
       int invitationIndex = -1;
 
@@ -248,7 +242,7 @@ class InvitationService {
         throw Exception('Invitation not found or already processed');
       }
 
-      // Step 3: Check if user is already a member
+      // Check if user is already a member
       String adminId = groupData['adminId'];
       List<dynamic> memberIds = groupData['memberIds'] ?? [];
 
@@ -256,7 +250,7 @@ class InvitationService {
         throw Exception('You are already a member of this group');
       }
 
-      // Step 4: Update invitation status to "accepted"
+      // Update invitation status to "accepted"
       targetInvitation['status'] = 'accepted';
       targetInvitation['acceptedAt'] = Timestamp.now();
       targetInvitation['acceptedBy'] = userId;
@@ -264,7 +258,7 @@ class InvitationService {
       // Update the invitation in the array
       invitations[invitationIndex] = targetInvitation;
 
-      // Step 5: Prepare batch write
+      // Prepare batch write
       WriteBatch batch = _firestore.batch();
 
       // Update group document
@@ -304,7 +298,7 @@ class InvitationService {
     required String userId,
   }) async {
     try {
-      // Step 1: Get group document
+      // Get group document
       DocumentSnapshot groupDoc = await _firestore
           .collection('groups')
           .doc(groupId)
@@ -317,7 +311,7 @@ class InvitationService {
       Map<String, dynamic> groupData = groupDoc.data() as Map<String, dynamic>;
       List<dynamic> invitations = groupData['invitations'] ?? [];
 
-      // Step 2: Find the pending invitation
+      // Find the pending invitation
       Map<String, dynamic>? targetInvitation;
       int invitationIndex = -1;
 
@@ -335,7 +329,7 @@ class InvitationService {
         throw Exception('Invitation not found or already processed');
       }
 
-      // Step 3: Update invitation status to "rejected"
+      // Update invitation status to "rejected"
       targetInvitation['status'] = 'rejected';
       targetInvitation['rejectedAt'] = Timestamp.now();
       targetInvitation['rejectedBy'] = userId;
@@ -343,7 +337,7 @@ class InvitationService {
       // Update the invitation in the array
       invitations[invitationIndex] = targetInvitation;
 
-      // Step 4: Update group document
+      // Update group document
       await _firestore.collection('groups').doc(groupId).update({
         'invitations': invitations,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -407,6 +401,6 @@ class InvitationService {
       return 'Please enter a valid email address';
     }
 
-    return null; // Valid
+    return null;
   }
 }

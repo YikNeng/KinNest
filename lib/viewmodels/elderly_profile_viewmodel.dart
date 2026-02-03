@@ -38,7 +38,7 @@ class ElderlyProfileViewModel extends ChangeNotifier {
 
   String get userEmail => _profile?.email ?? '';
 
-  // Available mobility levels (NEW FORMAT)
+  // Available mobility levels
   final List<String> mobilityLevels = [
     'Normal mobility',
     'Limited mobility',
@@ -46,10 +46,10 @@ class ElderlyProfileViewModel extends ChangeNotifier {
     'Wheelchair user',
   ];
 
-  // NEW: Map old values to new values
+  // Map old values to new values
   String _normalizeMobilityLevel(String? oldValue) {
     if (oldValue == null || oldValue.isEmpty) {
-      return mobilityLevels[0]; // Default to "Normal mobility"
+      return mobilityLevels[0];
     }
 
     // Mapping for backward compatibility
@@ -76,14 +76,14 @@ class ElderlyProfileViewModel extends ChangeNotifier {
     }
 
     // Default fallback
-    return mobilityLevels[0]; // "Normal mobility"
+    return mobilityLevels[0];
   }
 
   ElderlyProfileViewModel() {
     _initialize();
   }
 
-  /// Initialize - load profile
+  /// Initialize to load profile
   Future<void> _initialize() async {
     await loadProfile();
   }
@@ -124,7 +124,7 @@ class ElderlyProfileViewModel extends ChangeNotifier {
     weightController.text = _profile!.weight?.toString() ?? '';
     medicalConditionController.text = _profile!.medicalConditions ?? '';
 
-    // FIXED: Normalize the mobility level from database
+    // Normalize the mobility level from database
     _selectedMobilityLevel = _normalizeMobilityLevel(_profile!.mobilityLevel);
 
     notifyListeners();
@@ -206,7 +206,7 @@ class ElderlyProfileViewModel extends ChangeNotifier {
         height: height,
         weight: weight,
         medicalConditions: medicalConditions,
-        mobilityLevel: _selectedMobilityLevel, // Save normalized value
+        mobilityLevel: _selectedMobilityLevel,
       );
 
       await loadProfile();

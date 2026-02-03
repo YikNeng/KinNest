@@ -74,7 +74,7 @@ class LoginViewModel extends ChangeNotifier {
     return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
   }
 
-  /// Login method - returns true on success, false on failure
+  /// Login method
   Future<bool> login() async {
     if (_isDisposed) return false;
 
@@ -93,15 +93,43 @@ class LoginViewModel extends ChangeNotifier {
     }
 
     try {
-      // Call AuthService to login
-      // Just login - GoRouter will handle redirect automatically
-      await _authService.loginWithEmailPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text,
-      );
+      // Attempt Login with Auto-Retry Logic
+      try {
+        await _authService.loginWithEmailPassword(
+          email: emailController.text.trim(),
+          password: passwordController.text,
+        );
+      } catch (e) {
+        final errorString = e.toString().toLowerCase();
 
-      // ✅ SCHEDULE ALL PENDING REMINDERS for logged-in user
-      String userId = FirebaseAuth.instance.currentUser!.uid;
+        if (errorString.contains('user account is missing') ||
+            errorString.contains('unavailable')) {
+          debugPrint(
+            '⚠️ Connection issue or Cold start detected. Retrying login...',
+          );
+
+          await Future.delayed(const Duration(milliseconds: 1500));
+
+          if (_isDisposed) return false;
+
+          // Retry the login
+          await _authService.loginWithEmailPassword(
+            email: emailController.text.trim(),
+            password: passwordController.text,
+          );
+        } else {
+          rethrow;
+        }
+      }
+
+      // Post-Login Logic (Schedule Alarms)
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Login succeeded but user is null');
+      }
+
+      String userId = user.uid;
 
       // Get user role to check if elderly
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -124,7 +152,7 @@ class LoginViewModel extends ChangeNotifier {
         _isLoading = false;
         notifyListeners();
       }
-      return true; // GoRouter redirect will handle navigation
+      return true;
     } catch (e) {
       // Login failed
       if (!_isDisposed) {

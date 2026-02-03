@@ -6,7 +6,6 @@ class VoiceNoteService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
   /// Upload voice note to Firebase Storage
-  /// Returns the download URL
   Future<String> uploadVoiceNote({
     required File file,
     required String groupId,
@@ -18,7 +17,6 @@ class VoiceNoteService {
       String extension = path.extension(file.path);
       String fileName = 'voice_note_${timestamp}$extension';
 
-      // Storage path: voice_notes/{groupId}/{reminderId}/{fileName}
       String storagePath = 'voice_notes/$groupId/$reminderId/$fileName';
 
       // Upload file

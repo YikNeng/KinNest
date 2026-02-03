@@ -105,7 +105,7 @@ class _CreateGroupPageBody extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Description Field (Optional)
+              // Description Field
               _buildLabel('Description (Optional)', isRequired: false),
               const SizedBox(height: 8),
               TextField(
@@ -266,7 +266,7 @@ class _CreateGroupPageBody extends StatelessWidget {
     );
   }
 
-  // Helper: Build field label
+  // Build field label
   Widget _buildLabel(String text, {required bool isRequired}) {
     return Row(
       children: [
@@ -327,10 +327,9 @@ class _CreateGroupPageBody extends StatelessWidget {
       // Navigate back to group list
       await Future.delayed(const Duration(milliseconds: 300));
       if (context.mounted) {
-        context.pop(); // Go back to groups list
+        context.pop();
       }
     }
-    // If groupId is null, error message is already shown in UI
   }
 
   // Handle back button press
@@ -363,8 +362,8 @@ class _CreateGroupPageBody extends StatelessWidget {
             ),
             TextButton(
               onPressed: () {
-                Navigator.of(dialogContext).pop(); // Close dialog
-                context.pop(); // Go back
+                Navigator.of(dialogContext).pop();
+                context.pop();
               },
               child: Text(
                 'Discard',
@@ -379,7 +378,6 @@ class _CreateGroupPageBody extends StatelessWidget {
         ),
       );
     } else {
-      // No content, go back directly
       context.pop();
     }
   }

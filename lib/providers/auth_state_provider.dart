@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/auth_service.dart';
 
 /// Provider that listens to Firebase Auth state changes
 /// Used by GoRouter to determine authentication status
 class AuthStateProvider extends ChangeNotifier {
-  final AuthService _authService = AuthService();
-
   User? _user;
   bool _isInitialized = false;
 

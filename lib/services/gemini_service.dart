@@ -2,12 +2,10 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import '../models/exercise_model.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiService {
-  // Replace with your actual Gemini API key
-  static const String _apiKey = 'AIzaSyCIKMoP8Kg2IjasQpw5wKVMyuwzR85LrN8';
-
-  // UPDATED: Use correct model name and API version
+  static String get _apiKey => dotenv.env['GEMINI_KEY'] ?? '';
   static const String _baseUrl = 'https://generativelanguage.googleapis.com';
   static const String _modelName = 'gemini-2.5-flash';
 
@@ -30,10 +28,6 @@ class GeminiService {
         durationType: durationType,
         intensity: intensity,
       );
-
-      print('Calling Gemini API...');
-      print('Model: $_modelName');
-      print('URL: $_apiUrl');
 
       // Make API request
       final response = await http.post(
@@ -71,10 +65,7 @@ class GeminiService {
         }),
       );
 
-      print('Response status: ${response.statusCode}');
-
       if (response.statusCode != 200) {
-        print('Error response body: ${response.body}');
         throw Exception(
           'Gemini API error: ${response.statusCode} - ${response.body}',
         );
@@ -82,7 +73,6 @@ class GeminiService {
 
       // Parse response
       Map<String, dynamic> responseData = jsonDecode(response.body);
-      print('Response received successfully');
 
       // Check if response has candidates
       if (responseData['candidates'] == null ||
@@ -95,29 +85,18 @@ class GeminiService {
           responseData['candidates'][0]['content']['parts'][0]['text']
               .toString();
 
-      print('Generated text length: ${generatedText.length}');
-      print('RAW GEMINI OUTPUT:\n$generatedText');
-
       // Clean and parse JSON
       String cleanedJson = _extractJson(generatedText);
-      print(
-        'Cleaned JSON: ${cleanedJson.substring(0, cleanedJson.length > 200 ? 200 : cleanedJson.length)}...',
-      );
 
       Map<String, dynamic> exerciseJson = jsonDecode(cleanedJson);
 
       // Create ExerciseRoutine from parsed JSON
       ExerciseRoutine routine = ExerciseRoutine.fromJson(exerciseJson);
-      print(
-        'Routine created successfully with ${routine.exercises.length} exercises',
-      );
 
       return routine;
     } on FormatException catch (e) {
-      print('JSON parsing error: $e');
       throw Exception('Failed to parse exercise routine: Invalid JSON format');
     } catch (e) {
-      print('Error generating exercise routine: $e');
       throw Exception('Failed to generate exercise routine: $e');
     }
   }
@@ -202,26 +181,6 @@ Generate the routine now in valid JSON format only:
 ''';
   }
 
-  // LIMITATIONS:
-  // - Generate EXACTLY 5 exercises only
-  // - Each exercise must have at most 4 steps
-  // - Keep descriptions concise
-
-  // JSON STRUCTURE:
-  // {
-  //   "routine_type": "$durationType",
-  //   "duration_minutes": <total duration number>,
-  //   "exercises": [
-  //     {
-  //       "name": "<exercise name>",
-  //       "description": "<brief description>",
-  //       "steps": ["<step 1>", "<step 2>", "<step 3>"],
-  //       "duration_minutes": <duration number>,
-  //       "safety_notes": "<safety precautions>",
-  //     }
-  //   ],
-  //   "general_advice": "<general advice for the elderly user>"
-  // }
   /// Build health condition section of prompt
   String _buildMedicalConditionsSection(String medicalConditions) {
     // Check if health condition is generic/empty
@@ -253,7 +212,7 @@ Generate the routine now in valid JSON format only:
     return '- Mobility Level: $mobilityLevel';
   }
 
-  /// Extract JSON from Gemini response (handles markdown code blocks)
+  /// Extract JSON from Gemini response
   String _extractJson(String text) {
     // Remove markdown code block markers if present
     String cleaned = text.trim();
@@ -284,7 +243,7 @@ Generate the routine now in valid JSON format only:
     return cleaned;
   }
 
-  /// NEW: Save routine to Firestore
+  /// Save routine to Firestore
   Future<String> saveRoutineToFirestore({
     required String userId,
     required ExerciseRoutine routine,
@@ -296,7 +255,7 @@ Generate the routine now in valid JSON format only:
           .doc(userId)
           .collection('exerciseRoutines');
 
-      // Delete existing routine (keep only latest)
+      // Delete existing routine
       final existingRoutines = await routinesRef.get();
       for (var doc in existingRoutines.docs) {
         await doc.reference.delete();
@@ -311,7 +270,7 @@ Generate the routine now in valid JSON format only:
     }
   }
 
-  /// NEW: Load routine from Firestore
+  /// Load routine from Firestore
   Future<ExerciseRoutine?> loadRoutineFromFirestore({
     required String userId,
   }) async {
@@ -322,7 +281,7 @@ Generate the routine now in valid JSON format only:
           .doc(userId)
           .collection('exerciseRoutines');
 
-      // Get the latest routine (ordered by created_at)
+      // Get the latest routine
       final snapshot = await routinesRef
           .orderBy('created_at', descending: true)
           .limit(1)
@@ -339,7 +298,7 @@ Generate the routine now in valid JSON format only:
     }
   }
 
-  /// NEW: Delete routine from Firestore
+  /// Delete routine from Firestore
   Future<void> deleteRoutineFromFirestore({
     required String userId,
     required String routineId,

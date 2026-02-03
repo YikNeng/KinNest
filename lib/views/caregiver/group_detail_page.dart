@@ -28,7 +28,6 @@ class _GroupDetailPageBody extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
 
-      // In the AppBar of GroupDetailPage
       appBar: AppBar(
         title: Text(
           viewModel.isLoading ? 'Loading...' : viewModel.groupName,
@@ -41,9 +40,8 @@ class _GroupDetailPageBody extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, size: 28),
           onPressed: () => context.pop(),
         ),
-        // Add this actions parameter
         actions: [
-          if (viewModel.isAdmin) // Only show for admin
+          if (viewModel.isAdmin)
             IconButton(
               icon: const Icon(Icons.settings, size: 28),
               onPressed: () => context.push(
@@ -277,7 +275,7 @@ class _GroupDetailPageBody extends StatelessWidget {
                     ),
                   ],
                 ),
-                // Invite button (admin only)
+                // Invite button
                 if (viewModel.isAdmin)
                   ElevatedButton.icon(
                     onPressed: () => _navigateToInvite(context, viewModel),
@@ -410,7 +408,7 @@ class _GroupDetailPageBody extends StatelessWidget {
     );
   }
 
-  // Pending invitations section (admin only)
+  // Pending invitations section
   Widget _buildInvitationsSection(
     BuildContext context,
     GroupDetailViewModel viewModel,
